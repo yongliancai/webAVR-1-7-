@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <!-- 在 HTML 頁面的 <head> 區域中引入 Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+        <style>
+        video {
+            width: 100%;
+            height: auto;
+          }
+          </style>
+</head>
+<body>
+    <h1>我的會議室</h1>
+    <button onclick="shareScreen()">分享畫面</button>
+    <!-- 影像畫面 -->
+    <div id="screenShare">
+        <!-- 這裡放置分享的銀幕畫面 -->
+        <video id="localScreenShare" autoplay controls></video> 
+    </div>
+
+    <!-- 音訊功能 -->
+    <div id="audioContainer">
+        <audio id="localAudio" controls></audio>
+        <audio id="remoteAudio" controls></audio>
+    </div>
+
+    <!-- 聊天室功能 -->
+    <div id="chatContainer">
+        <div id="chatMessages">
+            <!-- 這裡放置聊天訊息 -->
+        </div>
+        <input type="text" id="chatInput" placeholder="在這裡輸入訊息">
+        <button onclick="sendMessage()">發送</button>
+    </div>
+
+    <!-- JavaScript 相關程式碼 -->
+    <script>
+            // 初始化 Socket.IO 連接（假設後端伺服器在同一個域名下，如果不是，需要修改連接的 URL）
+            const socket = io('http:// 192.168.56.1:3000');
+            const localScreenShareElement = document.getElementById('localScreenShare');
+            // 影像畫面功能
+            const screenShareElement = document.getElementById('screenShare');
+
+            // 音訊功能
+            const localAudioElement = document.getElementById('localAudio');
+            const remoteAudioElement = document.getElementById('remoteAudio');
+
+            // 聊天室功能
+            const chatMessagesElement = document.getElementById('chatMessages');
+            const chatInputElement = document.getElementById('chatInput');
+
+            // 函數：顯示影像畫面
+            function showScreenShare(stream) {
+                screenShareElement.srcObject = stream;
+            }
+
+            // 函數：顯示本地音訊
+            function showLocalAudio(stream) {
+                localAudioElement.srcObject = stream;
+            }
+
+            // 函數：顯示遠端音訊
+            function showRemoteAudio(stream) {
+                remoteAudioElement.srcObject = stream;
+            }
+
+            // 函數：在聊天室中顯示訊息
+            function displayChatMessage(message) {
+                const messageElement = document.createElement('div');
+                messageElement.textContent = message;
+                chatMessagesElement.appendChild(messageElement);
+            }
+
+            // 函數：發送聊天訊息
+            function sendMessage() {
+                const message = chatInputElement.value;
+                if (message.trim() !== '') {
+                    // 將訊息傳送給後端伺服器處理
+                    socket.emit('chatMessage', message);
+                    chatInputElement.value = '';
+                }
+            }
+
+            // 使用 getUserMedia() 開啟攝影機和麥克風
+            async function startMedia() {
+                try {
+                    // 確認瀏覽器支援新的媒體取得方法
+                    const mediaDevices = navigator.mediaDevices || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
+                    if (!mediaDevices) {
+                        throw new Error('瀏覽器不支援 getUserMedia');
+                    }
+
+                    const stream = await mediaDevices.getUserMedia({ 
+                        video: true, 
+                        audio: true 
+                    });
+
+                    // 以下的程式碼與你原本的程式碼保持一致
+
+                    // 顯示本地影像畫面
+                    showScreenShare(stream);
+
+                    // 顯示本地音訊
+                    showLocalAudio(stream);
+
+                    // 將影像畫面和音訊傳送給後端伺服器處理
+                    socket.emit('screenShareStream', stream);
+                    socket.emit('localAudioStream', stream);
+
+                    // 監聽後端伺服器發送的遠端音訊流
+                    socket.on('remoteAudioStream', (remoteStream) => {
+                        showRemoteAudio(remoteStream);
+                    });
+                } catch (error) {
+                    console.error('無法開啟攝影機和麥克風：', error);
+                }
+            }
+
+
+            // 開始媒體功能
+            startMedia();
+
+            // 監聽來自後端伺服器的聊天訊息
+            socket.on('chatMessage', displayChatMessage);
+
+
+                    // 當分享畫面按鈕被點擊時，開始分享畫面
+            function shareScreen() {
+                navigator.mediaDevices.getDisplayMedia({ video: true })
+                .then((stream) => {
+                    // 將分享的畫面顯示在創建的 <video> 元素中
+                    localScreenShareElement.srcObject = stream;
+
+                    // 將分享的畫面傳送給後端伺服器處理
+                    socket.emit('screenShareStream', stream);
+                })
+                .catch((error) => {
+                    if (error.name === 'NotAllowedError') {
+                    console.log('用戶拒絕了分享螢幕的請求');
+                    } else {
+                    console.error('無法分享畫面：', error);
+                    }
+                });
+            }
+
+            // 監聽後端伺服器回傳的遠端畫面並顯示
+            socket.on('remoteScreenShareStream', (stream) => {
+                const remoteVideoElement = document.createElement('video');
+                remoteVideoElement.srcObject = stream;
+                remoteVideoElement.autoplay = true;
+                remoteVideoElement.controls = true;
+                
+                // 將遠端畫面顯示在相應的區域（例如 <div> 元素）中
+                // 這裡你需要根據你的需求來確定遠端畫面顯示的位置
+                document.getElementById('remoteScreenShareContainer').appendChild(remoteVideoElement);
+            });
+
+            // 函數：顯示遠端分享的畫面
+            function showRemoteScreenShare(stream) {
+                const screenShareDiv = document.getElementById('screenShare');
+
+                // 確認 <div id="screenShare"> 元素沒有子元素
+                while (screenShareDiv.firstChild) {
+                    screenShareDiv.removeChild(screenShareDiv.firstChild);
+                }
+
+                // 創建一個新的 <video> 元素來顯示遠端分享的畫面
+                const remoteVideoElement = document.createElement('video');
+                remoteVideoElement.srcObject = stream;
+                remoteVideoElement.autoplay = true;
+                remoteVideoElement.controls = true;
+
+                // 將 <video> 元素添加到 <div id="screenShare"> 元素中
+                screenShareDiv.appendChild(remoteVideoElement);
+            }
+
+        // 其他你需要的 JavaScript 代碼將放在這裡。
+    </script>
+</body>
+</html>

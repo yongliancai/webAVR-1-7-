@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Friends</title>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-functions.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-storage.js"></script>
+</head>
+<body>
+    <input type="text" id="friend-id" placeholder="Friend's ID">
+    <button onclick="sendFriendRequest(userId, document.getElementById('friend-id').value)">Send Friend Request</button>
+    <div id="friend-requests"></div>
+    <div id="friend-list"></div>
+    <div id="friend-requests">
+        <!-- 通过JavaScript动态添加好友请求 -->
+    </div>
+    
+    <script>
+        // Configure Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+            authDomain: "webavr-b9273.firebaseapp.com",
+            projectId: "webavr-b9273",
+            storageBucket: "webavr-b9273.appspot.com",
+            messagingSenderId: "240463881336",
+            appId: "1:240463881336:web:6642598bf894378f2ff98d",
+            measurementId: "G-6Q7ZQ22WJN"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        let userId; // Declare a global variable to store user ID
+        
+        // Functions
+        function sendFriendRequest(fromUserId, toUserId) {
+            database.ref('/users/' + '/ID/' + toUserId).once('value').then(snapshot => {
+                if (snapshot.exists()) {
+                    database.ref('/users/' + '/ID/' + toUserId + '/friendRequests/' + fromUserId).set({ id: fromUserId });
+                    alert('好友請求已發送');
+                } else {
+                    alert('找不到該用戶');
+                }
+            }).catch(error => {
+                console.error('查找用戶時出現錯誤', error);
+                alert('查找用戶時出現錯誤');
+            });
+        }
+
+        function confirmFriendRequest(fromUserId, toUserId) {
+            // 将 toUserId 添加到 fromUserId 的好友列表
+            database.ref('/users/' + '/ID/' + fromUserId + '/friends/' + toUserId).set({ id: toUserId });
+            
+            // 将 fromUserId 添加到 toUserId 的好友列表
+            database.ref('/users/' + '/ID/' + toUserId + '/friends/' + fromUserId).set({ id: fromUserId });
+
+            // 从 fromUserId 的好友申请列表中删除 toUserId
+            database.ref('/users/' + '/ID/' + fromUserId + '/friendRequests/' + toUserId).remove();
+            
+            // 从 toUserId 的好友申请列表中删除 fromUserId
+            database.ref('/users/' + '/ID/' + toUserId + '/friendRequests/' + fromUserId).remove();
+        }
+
+
+
+
+        function rejectFriendRequest(fromUserId, toUserId) {
+            // 从待确认请求列表中删除
+            database.ref('/users/' + fromUserId + '/friendRequests/' + toUserId).remove();
+            database.ref('/users/' + toUserId + '/friendRequests/' + fromUserId).remove();
+        }
+
+
+        function showFriendList(userId) {
+            database.ref('/users/' + '/ID/' + userId + '/friends/').once('value').then(snapshot => {
+                const friendListElem = document.getElementById('friend-list');
+                
+                if (snapshot.exists()) {
+                    const friendsList = snapshot.val();
+                    let friendIds = Object.keys(friendsList);
+                    
+                    friendListElem.innerHTML = '<ul id="friend-ul"></ul>';
+                    const friendUl = document.getElementById('friend-ul');
+
+                    friendIds.forEach(friendId => {
+                        let friendLi = document.createElement("li");
+                        friendLi.id = 'friend-' + friendId;
+                        friendUl.appendChild(friendLi);
+
+                        // Fetch friend's details
+                        database.ref('/users/' + '/ID/' + friendId).once('value').then(friendSnapshot => {
+                            if (friendSnapshot.exists()) {
+                                const friendData = friendSnapshot.val();
+                                friendLi.textContent = friendData.name;
+
+                                // Check online status every 5 seconds
+                                setInterval(() => {
+                                    database.ref('/users/' + '/ID/' + friendId + '/LogIn/').once('value').then(statusSnapshot => {
+                                        if (statusSnapshot.val() === true) {
+                                            friendLi.textContent = friendData.name + " (在線)";
+                                        } else {
+                                            friendLi.textContent = friendData.name + " (離線)";
+                                        }
+                                    });
+                                }, 5000);
+                            }
+                        }).catch(error => {
+                            console.error('在獲取朋友資料時出錯：', error);
+                        });
+                    });
+                } else {
+                    friendListElem.innerHTML = '您目前還沒有任何好友。';
+                }
+            }).catch(error => {
+                console.error('在獲取好友列表時出錯：', error);
+                alert('在獲取好友列表時出錯。請檢查控制台以獲取更多信息。');
+            });
+        }
+
+
+
+        function checkFriendRequests(userId) {
+            // 監聽 '/users/' + userId + '/friendRequests/' 路徑下的數據變化
+            database.ref('/users/' + '/ID/' + userId + '/friendRequests/').on('value', function(snapshot) {
+                let requestHTML = '';
+                
+                // 遍歷每個子節點
+                snapshot.forEach(function(childSnapshot) {
+                    // 假設每個子節點都有一個 'id' 屬性
+                    let requestId = childSnapshot.val().id;  
+                    console.log(requestId);
+                    // 更新 HTML 內容以顯示好友請求和操作按鈕
+                    requestHTML += `<div id="request-${requestId}">
+                                        <span>${requestId}</span>
+                                        <button onclick="confirmFriendRequest('${userId}', '${requestId}')">確認</button>
+                                        <button onclick="rejectFriendRequest('${userId}', '${requestId}')">拒絕</button>
+                                    </div>`;
+                });
+                
+                // 如果沒有好友請求，則顯示適當的提示信息
+                if (requestHTML === '') {
+                    requestHTML = '目前沒有收到任何好友請求。';
+                }
+
+                // 將生成的 HTML 插入到頁面上
+                document.getElementById('friend-requests').innerHTML = requestHTML;
+            });
+        }
+
+
+
+
+
+        // Listen to the user's authentication state
+        firebase.auth().onAuthStateChanged(function(user) {
+            if (user) {
+                userId = user.uid; // Update the userId variable
+                console.log(userId);
+                showFriendList(userId);
+                checkFriendRequests(userId);
+            } else {
+                // Handle the case where the user is not logged in
+            }
+        });
+    </script>
+</body>
+</html>

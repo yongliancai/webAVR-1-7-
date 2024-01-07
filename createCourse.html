@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>課程資訊上傳</title>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-storage.js"></script>
+    <link rel="stylesheet" href="common.css">
+    <style>
+                body, input, select, textarea, label, h2, p {
+            font-family: 'Arial', sans-serif; /* 使用易讀的字型 */
+        }
+
+        input, select, textarea {
+            font-size: 18px; /* 增大字體 */
+            padding: 10px; /* 增加內間距 */
+            border-radius: 8px; /* 圓角效果 */
+            border: 2px solid #ccc; /* 邊框 */
+            margin-bottom: 10px; /* 下邊距 */
+        }
+
+        label {
+            font-size: 20px; /* 增大標籤字體 */
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+
+        h2, p {
+            font-size: 22px; /* 增大標題和段落字體 */
+        }
+
+        input[type="button"] {
+            background-color: #4CAF50; /* 按鈕背景色 */
+            color: white; /* 按鈕文字色 */
+            cursor: pointer; /* 鼠標樣式 */
+        }
+
+        input[type="button"]:hover {
+            background-color: #45a049; /* 滑過時的背景色 */
+        }
+
+
+        progress {
+            display: block; /* 確保以 block 級元素顯示 */
+            margin: 0 auto; /* 水平居中 */
+            width: 90%; /* 你可以按需設置寬度 */
+            transition: all 0.5s ease-in-out;
+            height: 20px; /* 增加高度 */
+        }
+
+
+
+        #courseDisplay {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+        }
+        form#courseForm, div#courseDisplay {
+            margin-left: 20px; /* 或者更多/更少，取決於你需要多少空間 */
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <a href="#">
+                <img src="slogo.png" style="width:50px; height:50px;">
+            </a>
+        </div>
+        <nav>
+            <ul class="navList">
+                <li><a href="showCourse.html">編輯區</a></li>
+                <li><a href="universe.html">共享區</a></li>
+                <li><a href="personal.html">個人頁</a></li>
+                <li><a href="jistsi.html">直播</a></li>
+                <li id="userLoginStatus"><a href="#" id="loginLink">登入</a></li>
+            </ul>
+        </nav>
+    </header>
+    <progress id="progressBar" value="0" max="100"></progress>
+    <form id="courseForm">
+        <!-- 課程基本信息 -->
+        <div id="courseInfo">
+            <label for="courseName">課程名稱:</label><br>
+            <input type="text" id="courseName" name="courseName" required><br>
+            <label for="courseDescription">課程說明:</label><br>
+            <textarea id="courseDescription" name="courseDescription" required></textarea><br>
+            <label for="courseCategory">課程&AI類別:</label><br>
+            <select id="courseCategory" name="courseCategory" required>
+                <option value="國文">國文</option>
+                <option value="英文">英文</option>
+                <option value="地理">地理</option>
+                <option value="數學">數學</option>
+                <option value="地科">地科</option>
+                <option value="自然">自然</option>
+                <option value="生物">生物</option>
+                <option value="其他">其他</option>
+            </select><br>
+            
+                        
+            <input type="button" value="下一步" onclick="goToCoverUpload()">
+            <input type="button" value="後退" onclick="goBack('courseInfo')">
+        </div>
+
+        <!-- 封面照上傳 -->
+        <div id="courseCover" style="display: none;">
+            <label for="courseImage">封面照:</label><br>
+            <input type="file" id="courseImage" name="courseImage" required><br>
+            <input type="button" value="下一步" onclick="goToParameters()">
+            <input type="button" value="後退" onclick="goBack('courseCover')">
+        </div>
+
+        <!-- 參數設定 -->
+        <div id="courseParameters" style="display: none;">
+            <label for="publicity">公開:</label><br>
+            <select id="publicity">
+                <option value="public">公開</option>
+                <option value="private">私人</option>
+            </select><br>
+            
+            <label for="pushNotification">推播:</label><br>
+            <select id="pushNotification">
+                <option value="yes">是</option>
+                <option value="no">否</option>
+            </select><br>
+
+            <label for="directEntry">直接進入課程:</label><br>
+            <select id="directEntry">
+                <option value="yes">是</option>
+                <option value="no">否</option>
+            </select><br>
+
+            <input type="button" value="完成" onclick="submitCourse()">
+            <input type="button" value="後退" onclick="goBack('courseParameters')">
+    </div>
+    </form>
+
+    <!-- 課程展示区域 -->
+    <div id="courseDisplay" style="display: none;">
+        <img id="displayImage" src="#" alt="Course Cover" width="100">
+        <h2 id="displayName"></h2>
+        <p id="displayDescription"></p>
+        <button onclick="editCourse()">編輯</button>
+        <button onclick="deleteCourse()">刪除</button>
+    </div>
+
+    <script>
+        var email;
+        var username;
+
+        var firebaseConfig = {
+            apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+            authDomain: "webavr-b9273.firebaseapp.com",
+            projectId: "webavr-b9273",
+            storageBucket: "webavr-b9273.appspot.com",
+            messagingSenderId: "240463881336",
+            appId: "1:240463881336:web:6642598bf894378f2ff98d",
+            measurementId: "G-6Q7ZQ22WJN"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        var username;
+        
+        function submitCourse() {
+            var courseName = document.getElementById('courseName').value;
+            var courseDescription = document.getElementById('courseDescription').value;
+            var courseCategory = document.getElementById('courseCategory').value;
+
+            let publicity = document.getElementById('publicity').value;
+            let pushNotification = document.getElementById('pushNotification').value;
+            let directEntry = document.getElementById('directEntry').value;
+
+            if (!courseName.trim() || !courseDescription.trim() || !publicity || !pushNotification || !directEntry) {
+                alert('請確保所有資料都已完整填寫！');
+                return;
+            }
+
+            let courseImageFile = document.getElementById('courseImage').files[0];
+            if (!courseImageFile) {
+                alert('請上傳課程封面圖片！');
+                return;
+            }
+            updateProgressBar(100); // 更新進度到100%
+            // 先上傳圖片到 Firebase Storage
+            var storageRef = firebase.storage().ref(username + '/courseCovers/' + courseImageFile.name);
+            storageRef.put(courseImageFile).then(function(snapshot) {
+                // 獲取圖片的 URL
+                storageRef.getDownloadURL().then(function(url) {
+                    var updates = {
+                        description: courseDescription,
+                        isPublic: publicity === "public",
+                        isPush: pushNotification === "yes",
+                        isEnterCourse: directEntry === "yes",
+                        coverImage: url // 這裡保存圖片的 URL
+                    };
+
+                    firebase.database().ref(username + '/course/' + courseCategory + '/' + courseName).update(updates)
+                        .then(function() {
+                            alert('資料已成功更新!');
+                            document.getElementById('displayName').innerText = courseName;
+                            document.getElementById('displayDescription').innerText = courseDescription;
+                            document.getElementById('displayImage').src = url;  // 顯示圖片
+                            document.getElementById('courseDisplay').style.display = 'block';
+
+                            // 導向至 showCourse.html
+                            window.location.href = 'showCourse.html';
+                        }).catch(function(error) {
+                            console.error('Error updating data in Realtime Database:', error);
+                        });
+                }).catch(function(error) {
+                    console.error('Error getting download URL:', error);
+                });
+            }).catch(function(error) {
+                console.error('Error uploading image to Firebase Storage:', error);
+            });
+        }
+
+        function goBack(currentSection) {
+            switch (currentSection) {
+                case 'courseParameters':
+                    document.getElementById('courseParameters').style.display = 'none';
+                    document.getElementById('courseCover').style.display = 'block';
+                    updateProgressBar(1/3 * 100);
+                    break;
+                case 'courseCover':
+                    document.getElementById('courseCover').style.display = 'none';
+                    document.getElementById('courseInfo').style.display = 'block';
+                    updateProgressBar(0 * 100);
+                    break;
+                case 'courseInfo':
+                    updateProgressBar(1*3 * 100);
+                    // 如果 courseInfo 是你的第一步，你可以選擇不做任何事，或跳轉到另一個頁面等。
+                    break;
+            }
+        }
+        
+        function goToCoverUpload() {
+            let courseName = document.getElementById('courseName').value;
+            let courseDescription = document.getElementById('courseDescription').value;
+            let courseCategory = document.getElementById('courseCategory').value;
+            if (!courseName.trim() || !courseDescription.trim() || !courseCategory.trim()) {
+                alert('請確保課程名稱、課程說明及課程類別都已輸入！');
+                return;
+            }
+            updateProgressBar(1/3 * 100); // 更新進度為1/3
+            document.getElementById('courseInfo').style.display = 'none';
+            document.getElementById('courseCover').style.display = 'block';
+        }
+
+        function goToParameters() {
+            let courseImage = document.getElementById('courseImage').files;
+            if (courseImage.length === 0) {
+                alert('請上傳封面照！');
+                return;
+            }
+            updateProgressBar(2/3 * 100); // 更新進度為2/3
+            document.getElementById('courseCover').style.display = 'none';
+            document.getElementById('courseParameters').style.display = 'block';
+        }
+
+        window.addEventListener("DOMContentLoaded", function(event){
+            checkAuthStatus();
+            firebase.auth().onAuthStateChanged(function(user){
+                if(user){
+                    email = user.email;
+                    username = email.split('@')[0];
+                    console.log("當前用戶", username);
+                    
+                }else{
+                    username = null;
+                    console.log("使用者未登入");
+                }
+            })
+        });
+        
+
+        function updateProgressBar(percentage) {
+            let progressBar = document.getElementById('progressBar');
+            progressBar.value = percentage;
+        }
+
+
+        function checkAuthStatus() {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            // 用戶已登入
+            var username = user.email.split("@")[0]; // 使用電子郵件的 @ 前字串作為 username
+            document.getElementById(
+              "userLoginStatus"
+            ).innerHTML = `歡迎, <a href="#" id="displayName">${username}</a> <div id="dropdownMenu" class="dropdown-content">
+          <a href="profile.html">個人資料</a>
+          <a href="settings.html">設定</a>
+          <a href="#" id="logout">登出</a>
+      </div>`;
+
+            // 點擊用戶名時顯示下拉選單
+            document
+              .getElementById("displayName")
+              .addEventListener("click", function (event) {
+                event.preventDefault();
+                document.getElementById("dropdownMenu").style.display = "block";
+                event.stopPropagation(); // 阻止事件冒泡
+              });
+
+            // 點擊頁面其他地方時隱藏下拉選單
+            document.addEventListener("click", function (event) {
+              var isClickInsideElement = document
+                .getElementById("dropdownMenu")
+                .contains(event.target);
+              if (!isClickInsideElement) {
+                document.getElementById("dropdownMenu").style.display = "none";
+              }
+            });
+
+            // 登出處理
+            document
+              .getElementById("logout")
+              .addEventListener("click", function () {
+                firebase
+                  .auth()
+                  .signOut()
+                  .then(() => {
+                    window.location.href = "index.html"; // 重定向到首頁或其他你希望的頁面
+                    // 登出成功，重定向或更新UI
+                  })
+                  .catch((error) => {
+                    // 處理錯誤
+                  });
+              });
+          } else {
+            // 用戶未登入
+            document
+              .getElementById("loginLink")
+              .setAttribute("href", "index.html");
+          }
+        });
+      }
+
+ 
+
+ 
+
+
+    </script>
+</body>
+</html>

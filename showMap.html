@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>360 Image Viewer</title>
+    <meta charset="utf-8" />
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Common CSS -->
+    <link rel="stylesheet" href="common.css" />
+
+    <!-- Inline CSS -->
+    <style>
+      .image-card {
+        width: 300px;
+        margin: 10px;
+        border: 1px solid #ccc;
+        box-shadow: 2px 2px 6px 0px #ccc;
+      }
+
+      .image-card img {
+        width: 100%;
+        height: 200px;
+        /* Fixed height */
+        object-fit: cover;
+        /* Cover entire space */
+      }
+
+      .card-body {
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+        <div class="logo">
+          <a href="#">
+            <img src="slogo.png" style="width: 50px; height: 50px" />
+          </a>
+        </div>
+        <nav>
+          <ul class="navList">
+            <li><a href="showCourse.html">編輯區</a></li>
+            <li><a href="universe.html">共享區</a></li>
+            <li><a href="personal.html">個人頁</a></li>
+            <li><a href="jistsi.html">直播</a></li>
+            <li id="userLoginStatus">
+              <a href="#" id="loginLink">登入</a>
+              <!-- 下拉選單的部分 -->
+              <div id="dropdownMenu" class="dropdown-content">
+                <a href="profile.html">個人資料</a>
+                <a href="settings.html">設定</a>
+                <a href="#" id="logout">登出</a>
+              </div>
+            </li>
+          </ul>
+        </nav>
+      </header>
+
+    <!-- Main Content -->
+    <h1>已建立地圖</h1>
+    <div class="container mt-5">
+      <div id="image-container" class="row"></div>
+    </div>
+
+    <!-- Firebase and Page Initialization Script -->
+    <script>
+      // Initialize Firebase
+      var config = {
+        apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+        authDomain: "webavr-b9273.firebaseapp.com",
+        projectId: "webavr-b9273",
+        storageBucket: "webavr-b9273.appspot.com",
+        messagingSenderId: "240463881336",
+        appId: "1:240463881336:web:6642598bf894378f2ff98d",
+        measurementId: "G-6Q7ZQ22WJN",
+      };
+      firebase.initializeApp(config);
+      var coursesList = document.getElementById("image-container");
+
+      // 獲取 URL 中的 query parameters
+      const queryString = window.location.search;
+      const urlParams = new URLSearchParams(queryString);
+
+      // 讀取特定的 query parameters
+      const category = urlParams.get("category");
+      const course = urlParams.get("course");
+
+      // 在控制台上顯示讀取到的值
+      console.log("Category:", category);
+      console.log("Course:", course);
+
+      var username;
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (user) {
+          var email = user.email;
+          username = email.split("@")[0];
+          checkIfUserIsStudent(username, function (isStudent) {
+            if (isStudent) {
+              var stuTeaRef = firebase
+                .database()
+                .ref(
+                  "/userRoles/" + "/student/" + username + "/yourTeacherName/"
+                );
+              stuTeaRef.once("value", (snapshot) => {
+                var yourTeacherName = snapshot.val();
+                console.log("yourTeacherName：" + yourTeacherName);
+                username = yourTeacherName;
+                var dbRef = firebase
+                  .database()
+                  .ref(
+                    username + "/course/" + category + "/" + course + "/map/"
+                  );
+                dbRef.once("value").then(function (snapshot) {
+                  var imageContainer =
+                    document.getElementById("image-container");
+                  snapshot.forEach(function (mapSnapshot) {
+                    var childData = mapSnapshot.val();
+                    console.log(childData);
+                    if (childData.URL) {
+                      // Create Bootstrap Column
+                      var colElement = document.createElement("div");
+                      colElement.className = "col-md-4";
+
+                      // Create Card Element
+                      var cardElement = document.createElement("div");
+                      cardElement.className = "card image-card";
+                      cardElement.innerHTML = `
+                            <img src="${childData.URL}" alt="${
+                        mapSnapshot.key
+                      }" class="card-img-top">
+                            <div class="card-body">
+                                <h5 class="card-title">${mapSnapshot.key}</h5>
+                                ${
+                                  isStudent
+                                    ? `<button class="btn btn-primary view-map-btn mt-2 mb-2" data-mapname="${mapSnapshot.key}">進入地圖</button>`
+                                    : `<button class="btn btn-primary edit-course-btn mt-2 mb-2" data-mapname="${mapSnapshot.key}">編輯</button>
+                                            <button class="btn btn-danger mt-2 mb-2" onclick="deleteMap('${mapSnapshot.key}')">刪除</button>
+                                            <button class="btn btn-info mt-2 mb-2">地圖資訊</button>
+                                            <button class="btn btn-success mt-2 mb-2">作答狀況</button>
+                                            <button class="btn btn-warning mt-2 mb-2 add-image-btn">轉QRcode</button>`
+                                }
+                            </div>
+                        `;
+
+                      colElement.appendChild(cardElement);
+                      imageContainer.appendChild(colElement);
+
+                      // Add Button Event Listeners
+                      addEventListeners(
+                        isStudent,
+                        mapSnapshot.key,
+                        category,
+                        course
+                      );
+                    }
+                  });
+                });
+              }); //將老師的名字改為username到資料庫讀取資料，懶得改哈哈哈
+            } else {
+              var dbRef = firebase
+                .database()
+                .ref(username + "/course/" + category + "/" + course + "/map/");
+              dbRef.once("value").then(function (snapshot) {
+                var imageContainer = document.getElementById("image-container");
+                snapshot.forEach(function (mapSnapshot) {
+                  var childData = mapSnapshot.val();
+                  console.log(childData);
+                  if (childData.URL) {
+                    // Create Bootstrap Column
+                    var colElement = document.createElement("div");
+                    colElement.className = "col-md-4";
+
+                    // Create Card Element
+                    var cardElement = document.createElement("div");
+                    cardElement.className = "card image-card";
+                    cardElement.innerHTML = `
+                            <img src="${childData.URL}" alt="${
+                      mapSnapshot.key
+                    }" class="card-img-top">
+                            <div class="card-body">
+                                <h5 class="card-title">${mapSnapshot.key}</h5>
+                                ${
+                                  isStudent
+                                    ? `<button class="btn btn-primary view-map-btn mt-2 mb-2" data-mapname="${mapSnapshot.key}">進入地圖</button>`
+                                    : `<button class="btn btn-primary edit-course-btn mt-2 mb-2" data-mapname="${mapSnapshot.key}">編輯</button>
+                                            <button class="btn btn-danger mt-2 mb-2" onclick="deleteMap('${mapSnapshot.key}')">刪除</button>
+                                            <button class="btn btn-info mt-2 mb-2">地圖資訊</button>
+                                            <button class="btn btn-success mt-2 mb-2">作答狀況</button>
+                                            <button class="btn btn-warning mt-2 mb-2 add-image-btn">轉QRcode</button>`
+                                }
+                            </div>
+                        `;
+
+                    colElement.appendChild(cardElement);
+                    imageContainer.appendChild(colElement);
+
+                    // Add Button Event Listeners
+                    addEventListeners(
+                      isStudent,
+                      mapSnapshot.key,
+                      category,
+                      course
+                    );
+                  }
+                });
+              });
+            }
+          });
+        } else {
+          console.log("No user is signed in");
+        }
+      });
+
+      function addEventListeners(isStudent, mapName, category, course) {
+        if (isStudent) {
+            console.log(isStudent, mapName, category, course);
+          var viewMapBtn = document.querySelector(
+            ".view-map-btn[data-mapname='" + mapName + "']"
+          );
+          if (viewMapBtn) {
+            viewMapBtn.addEventListener("click", function () {
+              window.location.href = `createMap.html?category=${encodeURIComponent(
+                category
+              )}&course=${encodeURIComponent(course)}&map=${encodeURIComponent(
+                mapName
+              )}`;
+            });
+          }
+        } else {
+          // Add 'Edit' Button Event Listeners
+          var editCourseBtn = document.querySelector(
+            ".edit-course-btn[data-mapname='" + mapName + "']"
+          );
+          if (editCourseBtn) {
+            editCourseBtn.addEventListener("click", function () {
+              window.location.href = `createMap.html?category=${encodeURIComponent(
+                category
+              )}&course=${encodeURIComponent(
+                course
+              )}&map=${encodeURIComponent(mapName)}`;
+            });
+          }
+
+          // Event Listener for 'Add New Image'
+          var addImageButton = document.querySelector(".add-image-btn");
+          if (addImageButton) {
+            addImageButton.addEventListener("click", function () {
+              window.location.href = `createMap.html?category=${encodeURIComponent(
+                category
+              )}&course=${encodeURIComponent(course)}`;
+            });
+          }
+        }
+      }
+
+      function addNewImageCard() {
+        // Implement the logic for adding a new image card for teachers here
+        // For example:
+        var imageCard = document.createElement("div");
+        imageCard.className = "card image-card";
+        imageCard.innerHTML = `
+        <div class="card-body text-center">
+            <h5 class="card-title">新增地圖</h5>
+            <button id="createMapButton" class="btn btn-primary">新增</button>
+        </div>
+    `;
+        coursesList.appendChild(imageCard);
+        // 為新增按鈕添加點擊事件
+        const createMapButton = document.getElementById("createMapButton");
+        createMapButton.addEventListener("click", function () {
+          window.location.href = `createMap.html?category=${encodeURIComponent(
+            category
+          )}&course=${encodeURIComponent(course)}`;
+        });
+        // Add any additional logic or event listeners as needed
+      }
+
+      function deleteMap(mapName) {
+        var confirmDelete = confirm("確定要刪除地圖嗎？");
+        if (confirmDelete) {
+          var mapRefF = firebase
+            .database()
+            .ref(
+              username +
+                "/course/" +
+                category +
+                "/" +
+                course +
+                "/" +
+                "/map/" +
+                mapName
+            );
+          var mapRef = firebase.database().ref(username + "/map/" + mapName);
+          deleteCourse(mapRef)
+            .then(() => {
+              // 刪除成功後的處理，例如重新載入地圖列表
+              location.reload();
+            })
+            .catch((error) => {
+              console.error("刪除地圖時發生錯誤：", error);
+            });
+          deleteCourse(mapRefF)
+            .then(() => {
+              // 刪除成功後的處理，例如重新載入地圖列表
+              location.reload();
+            })
+            .catch((error) => {
+              console.error("刪除地圖時發生錯誤：", error);
+            });
+        }
+      }
+
+      function deleteCourse(courseRef) {
+        // 返回一個 Promise，以便在刪除完成時進行後續處理
+        return new Promise((resolve, reject) => {
+          courseRef
+            .remove()
+            .then(() => {
+              resolve();
+            })
+            .catch((error) => {
+              reject(error);
+            });
+        });
+      }
+
+      function checkIfUserIsStudent(userId, callback) {
+        console.log("正在檢查用戶角色，用戶ID：" + userId);
+        var studentRef = firebase.database().ref("userRoles/student/" + userId);
+
+        studentRef.once("value", function (snapshot) {
+          if (snapshot.exists()) {
+            console.log("用戶是學生");
+            callback(true);
+          } else {
+            console.log("用戶不是學生，檢查是否為老師");
+            var teacherRef = firebase
+              .database()
+              .ref("userRoles/teacher/" + userId);
+            teacherRef.once("value", function (snapshot) {
+              if (snapshot.exists()) {
+                console.log("用戶是老師");
+                callback(false);
+                addNewImageCard(); // 添加這一行
+              } else {
+                console.log("用戶既不是學生也不是老師");
+                callback(false);
+              }
+            });
+          }
+        });
+      }
+      function checkAuthStatus() {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            // 用戶已登入
+            var username = user.email.split("@")[0]; // 使用電子郵件的 @ 前字串作為 username
+            document.getElementById(
+              "userLoginStatus"
+            ).innerHTML = `歡迎, <a href="#" id="displayName">${username}</a> <div id="dropdownMenu" class="dropdown-content">
+          <a href="profile.html">個人資料</a>
+          <a href="settings.html">設定</a>
+          <a href="#" id="logout">登出</a>
+      </div>`;
+
+            // 點擊用戶名時顯示下拉選單
+            document
+              .getElementById("displayName")
+              .addEventListener("click", function (event) {
+                event.preventDefault();
+                document.getElementById("dropdownMenu").style.display = "block";
+                event.stopPropagation(); // 阻止事件冒泡
+              });
+
+            // 點擊頁面其他地方時隱藏下拉選單
+            document.addEventListener("click", function (event) {
+              var isClickInsideElement = document
+                .getElementById("dropdownMenu")
+                .contains(event.target);
+              if (!isClickInsideElement) {
+                document.getElementById("dropdownMenu").style.display = "none";
+              }
+            });
+
+            // 登出處理
+            document
+              .getElementById("logout")
+              .addEventListener("click", function () {
+                firebase
+                  .auth()
+                  .signOut()
+                  .then(() => {
+                    window.location.href = "index.html"; // 重定向到首頁或其他你希望的頁面
+                    // 登出成功，重定向或更新UI
+                  })
+                  .catch((error) => {
+                    // 處理錯誤
+                  });
+              });
+          } else {
+            // 用戶未登入
+            document
+              .getElementById("loginLink")
+              .setAttribute("href", "index.html");
+          }
+        });
+      }
+
+      // 在頁面加載時調用
+      checkAuthStatus();
+    </script>
+  </body>
+</html>

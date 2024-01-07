@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Login/Registration Example</title>
+  <!-- Include the Firebase JavaScript SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.5/firebase-auth.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="common.css">
+</head>
+
+<body>
+  <h1>webavr-LOGIN</h1>
+  <!-- Login form -->
+  <div id="login-form" class="form-container">
+    <h2>Login</h2>
+    <input type="email" id="login-email" placeholder="Email">
+    <input type="password" id="login-password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p>Don't have an account? <a href="#" onclick="showRegisterForm()">Register</a></p>
+  </div>
+
+  <!-- Registration form -->
+  <div id="register-form" class="form-container" style="display: none;">
+    <h2>Register</h2>
+    <input type="text" id="register-username" placeholder="Username">
+    <input type="email" id="register-email" placeholder="Email">
+    <input type="password" id="register-password" placeholder="Password">
+    <label for="teacher-checkbox">Are you a teacher?</label>
+    <input type="checkbox" id="teacher-checkbox" name="teacher">
+    <button onclick="register()">Register</button>
+    <p>Already have an account? <a href="#"
+        onclick="document.getElementById('login-form').style.display = 'block'; document.getElementById('register-form').style.display = 'none';">Login</a>
+    </p>
+  </div>
+
+  <!-- Initialize Firebase -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+      authDomain: "webavr-b9273.firebaseapp.com",
+      projectId: "webavr-b9273",
+      storageBucket: "webavr-b9273.appspot.com",
+      messagingSenderId: "240463881336",
+      appId: "1:240463881336:web:6642598bf894378f2ff98d",
+      measurementId: "G-6Q7ZQ22WJN"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Get a reference to the database service
+    var database = firebase.database();
+
+    function register() {
+      var username = document.getElementById('register-username').value;
+      var email = document.getElementById('register-email').value;
+      var password = document.getElementById('register-password').value;
+      var isTeacher = document.getElementById('teacher-checkbox').checked;
+
+      // 檢查使用者名稱是否已存在
+      var db = firebase.database();
+      db.ref('users/' + username).once('value').then(function (snapshot) {
+        if (snapshot.exists()) {
+          // 使用者名稱已存在
+          console.log('Username already exists!');
+          alert('The username is already taken, please choose another one.');
+        } else {
+          // 使用者名稱可用，繼續註冊
+          firebase.auth().createUserWithEmailAndPassword(email, password)
+            .then(function (userCredential) {
+              var user = userCredential.user;
+              console.log("User registered:", user);
+
+              // 使用使用者名稱創建一個用戶節點
+              var userRef = db.ref("users/" + username);
+              userRef.set({
+                "email": email,
+                "name": username,
+                "isTeacher": isTeacher,  // 新增是否為老師的屬性
+                "friends": {}
+              }).then(function () {
+                console.log("User node created in the database with username and teacher status");
+
+                // 更新 userRoles 節點
+                if (isTeacher) {
+                  db.ref("userRoles/teacher/" + username).set(
+                    {
+                      "yourStudentName": ""
+                    }
+                  )
+                } else {
+                  db.ref("userRoles/student/" + username).set(
+                    {
+                      "yourTeacherName": ""
+                    }
+                  )
+                };
+
+                // 註冊成功後自動登入
+                firebase.auth().signInWithEmailAndPassword(email, password)
+                  .then(function (userCredential) {
+                    // User logged in successfully
+                    var user = userCredential.user;
+                    console.log("User logged in:", user);
+
+                    // 提示註冊成功，即將自動登入
+                    alert("註冊成功，即將自動登入");
+
+                    // 可以根據需要進行任何其他設置或導航
+                    window.location.href = "showCourse.html";
+                  })
+                  .catch(function (error) {
+                    // Error occurred during login after registration
+                    var errorMessage = error.message;
+                    console.log("Login error after registration:", errorMessage);
+                  });
+              }).catch(function (error) {
+                console.log("Error creating user node in the database:", error);
+              });
+            })
+            .catch(function (error) {
+              var errorMessage = error.message;
+              console.log("Registration error:", errorMessage);
+            });
+        }
+      });
+    }
+
+// Function to log in an existing user
+function login() {
+  var email = document.getElementById('login-email').value;
+  var password = document.getElementById('login-password').value;
+
+  firebase.auth().signInWithEmailAndPassword(email, password)
+    .then(function (userCredential) {
+      // User logged in successfully
+      var user = userCredential.user;
+      console.log("User logged in:", user);
+      window.location.href = "showCourse.html";
+      alert("登入成功");
+    })
+    .catch(function (error) {
+      // Error occurred during login
+      var errorMessage = error.message;
+      console.log("Login error:", errorMessage);
+      alert("登入失敗，帳號或密碼有誤");
+    });
+}
+
+
+    // Function to show registration form
+    function showRegisterForm() {
+      document.getElementById('register-form').style.display = "block";
+      document.getElementById('login-form').style.display = "none";
+    }
+  </script>
+</body>
+
+</html>

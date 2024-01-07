@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Courses</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="common.css" />
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    />
+
+    <style>
+      .course-card {
+        width: 300px;
+        margin: 10px;
+      }
+      .course-card img {
+        max-height: 150px;
+        object-fit: cover; /* 保持圖片比例 */
+      }
+      .button-group {
+        margin-top: 10px;
+      }
+      .button-group button {
+        margin-right: 5px;
+      }
+      .image-card {
+        width: 300px;
+        margin: 10px;
+      }
+      .image-card img {
+        max-height: 150px;
+        object-fit: cover;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">
+        <a href="#">
+          <img src="slogo.png" style="width: 50px; height: 50px" />
+        </a>
+      </div>
+      <nav>
+        <ul class="navList">
+          <li><a href="showCourse.html">編輯區</a></li>
+          <li><a href="universe.html">共享區</a></li>
+          <li><a href="personal.html">個人頁</a></li>
+          <li><a href="jistsi.html">直播</a></li>
+          <li id="userLoginStatus">
+            <a href="#" id="loginLink">登入</a>
+            <!-- 下拉選單的部分 -->
+            <div id="dropdownMenu" class="dropdown-content">
+              <a href="profile.html">個人資料</a>
+              <a href="settings.html">設定</a>
+              <a href="#" id="logout">登出</a>
+            </div>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <h1>已建立課程</h1>
+    <div class="container mt-5">
+      <div id="courses-list" class="row">
+        <!-- 課程將動態插入這裡 -->
+      </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-database.js"></script>
+
+    <script>
+      // ... 原有的 Firebase 初始化和認證代碼
+      const firebaseConfig = {
+        apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+        authDomain: "webavr-b9273.firebaseapp.com",
+        projectId: "webavr-b9273",
+        storageBucket: "webavr-b9273.appspot.com",
+        messagingSenderId: "240463881336",
+        appId: "1:240463881336:web:6642598bf894378f2ff98d",
+        measurementId: "G-6Q7ZQ22WJN",
+      };
+
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      // 在開頭聲明coursesList
+      var coursesList = document.getElementById("courses-list");
+      firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            var coursesList = document.getElementById("courses-list");
+          var username = user.email.split("@")[0];
+          checkIfUserIsStudent(username, function (isStudent) {
+            if(isStudent){
+                var stuTeaRef = firebase.database().ref("/userRoles/" + "/student/" + username + "/yourTeacherName/");
+                stuTeaRef.once("value", (snapshot => {
+                    var yourTeacherName = snapshot.val();
+                    console.log("yourTeacherName：" + yourTeacherName);
+                    username = yourTeacherName; //將老師的名字改為username到資料庫讀取資料，懶得改哈哈哈
+                    var coursesRef = firebase.database().ref(username + "/course/");
+          var coursesList = document.getElementById("courses-list");
+            coursesRef.once("value", (snapshot) => {
+              snapshot.forEach((categorySnapshot) => {
+                categorySnapshot.forEach((courseSnapshot) => {
+                  var course = courseSnapshot.val();
+                  var courseName = courseSnapshot.key;
+                  var courseCard = document.createElement("div");
+                  courseCard.className = "card course-card";
+                  courseCard.innerHTML = `
+                            <img src="${
+                              course.coverImage
+                            }" alt="${courseName}" class="card-img-top">
+                            <div class="card-body">
+                                <h5 class="card-title">${courseName} (${
+                    categorySnapshot.key
+                  })</h5>
+                                <p class="card-text">${course.description}</p>
+                                <div class="button-group">
+                                    ${
+                                      isStudent
+                                        ? '<button class="btn btn-primary enter-course-btn mt-2 mb-2">進入課程</button>'
+                                        : '<button class="btn btn-primary edit-course-btn mt-2 mb-2">編輯</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-danger delete-course-btn mt-2 mb-2">刪除</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-info course-data-btn mt-2 mb-2">課程資訊</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-success answer-status-btn mt-2 mb-2">作答狀況</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-warning turn-qrcode-btn mt-2 mb-2">轉QRcode</button>'
+                                    }
+                                </div>
+                            </div>
+                        `;
+                  coursesList.appendChild(courseCard);
+                });
+              });
+
+              // 在這裡添加按鈕事件
+              const editButtons = document.querySelectorAll(".edit-course-btn");
+              editButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {
+                  const cardTitleElement =
+                    this.parentElement.parentElement.querySelector(
+                      ".card-title"
+                    );
+                  const categoryNameMatch =
+                    cardTitleElement.textContent.match(/\(([^)]+)\)/);
+
+                  if (categoryNameMatch) {
+                    const categoryName = categoryNameMatch[1]; // 獲取類別名稱
+                    const courseName = cardTitleElement.textContent
+                      .replace(categoryNameMatch[0], "")
+                      .trim();
+
+                    // 將 categoryName 和 courseName 作為 query parameters 附加到 URL
+                    const redirectTo = `showMap.html?category=${encodeURIComponent(
+                      categoryName
+                    )}&course=${encodeURIComponent(courseName)}`;
+
+                    // 重新導向到 showMap.html，並攜帶 query parameters
+                    window.location.href = redirectTo;
+                  } else {
+                    console.error("無法獲取類別名稱");
+                  }
+                });
+              });
+
+              const enterButtons =
+                document.querySelectorAll(".enter-course-btn");
+              enterButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {
+                  const cardTitleElement =
+                    this.parentElement.parentElement.querySelector(
+                      ".card-title"
+                    );
+                  const categoryNameMatch =
+                    cardTitleElement.textContent.match(/\(([^)]+)\)/);
+
+                    if (categoryNameMatch) {
+                    const categoryName = categoryNameMatch[1]; // 獲取類別名稱
+                    const courseName = cardTitleElement.textContent
+                      .replace(categoryNameMatch[0], "")
+                      .trim();
+
+                    // 將 categoryName 和 courseName 作為 query parameters 附加到 URL
+                    const redirectTo = `showMap.html?category=${encodeURIComponent(
+                      categoryName
+                    )}&course=${encodeURIComponent(courseName)}`;
+
+                    // 重新導向到 showMap.html，並攜帶 query parameters
+                    window.location.href = redirectTo;
+                  } else {
+                    console.error("無法獲取類別名稱");
+                  }
+                });
+              });
+              // 在原有的代碼中，將 deleteCourse 整合進去
+              const deleteButtons =
+                document.querySelectorAll(".delete-course-btn");
+              deleteButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {
+                  const cardTitleElement =
+                    this.parentElement.parentElement.querySelector(
+                      ".card-title"
+                    );
+                  const categoryNameMatch =
+                    cardTitleElement.textContent.match(/\(([^)]+)\)/);
+
+                  if (categoryNameMatch) {
+                    const categoryName = categoryNameMatch[1];
+                    const courseName = cardTitleElement.textContent
+                      .replace(categoryNameMatch[0], "")
+                      .trim();
+
+                    console.log("課程名稱:", courseName);
+                    console.log("類別名稱:", categoryName);
+
+                    // 獲取對應的課程參考
+                    const username = user.email.split("@")[0];
+                    const courseRef = firebase
+                      .database()
+                      .ref(
+                        username + "/course/" + categoryName + "/" + courseName
+                      );
+
+                    deleteCourse(courseRef)
+                      .then(() => {
+                        console.log("課程資料已成功刪除！");
+                        // 在這裡你可以更新UI或執行其他操作
+                        location.reload(); // 重新整理頁面
+                      })
+                      .catch((error) => {
+                        console.error("刪除課程資料時發生錯誤：", error);
+                      });
+                  } else {
+                    console.error("無法獲取類別名稱");
+                  }
+                });
+              });
+              const courseDataButtons =
+                document.querySelectorAll(".course-data-btn");
+              courseDataButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {});
+              });
+              const answerStatusButtons =
+                document.querySelectorAll(".answer-status-btn");
+              answerStatusButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {});
+              });
+              const turnQrButtons =
+                document.querySelectorAll(".turn-qrcode-btn");
+              turnQrButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {});
+              });
+            });
+                }));
+                hideAddCardAndModifyButtons();
+            }else{
+
+                          // 如果是老師，添加新增360圖片的卡片
+                          addNewImageCard();
+          var coursesRef = firebase.database().ref(username + "/course/");
+          var coursesList = document.getElementById("courses-list");
+            coursesRef.once("value", (snapshot) => {
+              snapshot.forEach((categorySnapshot) => {
+                categorySnapshot.forEach((courseSnapshot) => {
+                  var course = courseSnapshot.val();
+                  var courseName = courseSnapshot.key;
+                  var courseCard = document.createElement("div");
+                  courseCard.className = "card course-card";
+                  courseCard.innerHTML = `
+                            <img src="${
+                              course.coverImage
+                            }" alt="${courseName}" class="card-img-top">
+                            <div class="card-body">
+                                <h5 class="card-title">${courseName} (${
+                    categorySnapshot.key
+                  })</h5>
+                                <p class="card-text">${course.description}</p>
+                                <div class="button-group">
+                                    ${
+                                      isStudent
+                                        ? '<button class="btn btn-primary enter-course-btn mt-2 mb-2">進入課程</button>'
+                                        : '<button class="btn btn-primary edit-course-btn mt-2 mb-2">編輯</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-danger delete-course-btn mt-2 mb-2">刪除</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-info course-data-btn mt-2 mb-2">課程資訊</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-success answer-status-btn mt-2 mb-2">作答狀況</button>'
+                                    }
+                                    ${
+                                      isStudent
+                                        ? ""
+                                        : '<button class="btn btn-warning turn-qrcode-btn mt-2 mb-2">轉QRcode</button>'
+                                    }
+                                </div>
+                            </div>
+                        `;
+                  coursesList.appendChild(courseCard);
+                });
+              });
+
+              // 在這裡添加按鈕事件
+              const editButtons = document.querySelectorAll(".edit-course-btn");
+              editButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {
+                  const cardTitleElement =
+                    this.parentElement.parentElement.querySelector(
+                      ".card-title"
+                    );
+                  const categoryNameMatch =
+                    cardTitleElement.textContent.match(/\(([^)]+)\)/);
+
+                  if (categoryNameMatch) {
+                    const categoryName = categoryNameMatch[1]; // 獲取類別名稱
+                    const courseName = cardTitleElement.textContent
+                      .replace(categoryNameMatch[0], "")
+                      .trim();
+
+                    // 將 categoryName 和 courseName 作為 query parameters 附加到 URL
+                    const redirectTo = `showMap.html?category=${encodeURIComponent(
+                      categoryName
+                    )}&course=${encodeURIComponent(courseName)}`;
+
+                    // 重新導向到 showMap.html，並攜帶 query parameters
+                    window.location.href = redirectTo;
+                  } else {
+                    console.error("無法獲取類別名稱");
+                  }
+                });
+              });
+
+              const enterButtons =
+                document.querySelectorAll(".enter-course-btn");
+              enterButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {
+                  const cardTitleElement =
+                    this.parentElement.parentElement.querySelector(
+                      ".card-title"
+                    );
+                  const categoryNameMatch =
+                    cardTitleElement.textContent.match(/\(([^)]+)\)/);
+
+                  if (categoryNameMatch) {
+                    const categoryName = categoryNameMatch[1];
+                    const courseName = cardTitleElement.textContent
+                      .replace(categoryNameMatch[0], "")
+                      .trim();
+
+                    console.log("課程名稱:", courseName);
+                    console.log("類別名稱:", categoryName);
+
+                    // 獲取對應的課程參考
+                    const username = user.email.split("@")[0];
+                    const courseRef = firebase
+                      .database()
+                      .ref(
+                        username + "/course/" + categoryName + "/" + courseName
+                      );
+                  }
+                  window.location.href = "showMap.html";
+                });
+              });
+              // 在原有的代碼中，將 deleteCourse 整合進去
+              const deleteButtons =
+                document.querySelectorAll(".delete-course-btn");
+              deleteButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {
+                  const cardTitleElement =
+                    this.parentElement.parentElement.querySelector(
+                      ".card-title"
+                    );
+                  const categoryNameMatch =
+                    cardTitleElement.textContent.match(/\(([^)]+)\)/);
+
+                  if (categoryNameMatch) {
+                    const categoryName = categoryNameMatch[1];
+                    const courseName = cardTitleElement.textContent
+                      .replace(categoryNameMatch[0], "")
+                      .trim();
+
+                    console.log("課程名稱:", courseName);
+                    console.log("類別名稱:", categoryName);
+
+                    // 獲取對應的課程參考
+                    const username = user.email.split("@")[0];
+                    const courseRef = firebase
+                      .database()
+                      .ref(
+                        username + "/course/" + categoryName + "/" + courseName
+                      );
+
+                    deleteCourse(courseRef)
+                      .then(() => {
+                        console.log("課程資料已成功刪除！");
+                        // 在這裡你可以更新UI或執行其他操作
+                        location.reload(); // 重新整理頁面
+                      })
+                      .catch((error) => {
+                        console.error("刪除課程資料時發生錯誤：", error);
+                      });
+                  } else {
+                    console.error("無法獲取類別名稱");
+                  }
+                });
+              });
+              const courseDataButtons =
+                document.querySelectorAll(".course-data-btn");
+              courseDataButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {});
+              });
+              const answerStatusButtons =
+                document.querySelectorAll(".answer-status-btn");
+              answerStatusButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {});
+              });
+              const turnQrButtons =
+                document.querySelectorAll(".turn-qrcode-btn");
+              turnQrButtons.forEach((btn) => {
+                btn.addEventListener("click", function () {});
+              });
+            });
+    
+
+            }
+          });
+        } else {
+          console.log("No user is signed in.");
+        }
+      });
+
+      function hideAddCardAndModifyButtons() {
+        var coursesList = document.getElementById("courses-list");
+        // 將新增課程的卡片隱藏
+        var addCourseCard = document.querySelector(
+          ".card.course-card:last-child"
+        );
+        addCourseCard.style.display = "none";
+
+        // 隱藏編輯按鈕和其他按鈕
+        const editButtons = document.querySelectorAll(
+          ".edit-course-btn, .btn-danger, .btn-info, .btn-success, .btn-warning"
+        );
+        editButtons.forEach((btn) => {
+          btn.style.display = "none";
+        });
+      }
+
+      function deleteCourse(courseRef) {
+        // 返回一個 Promise，以便在刪除完成時進行後續處理
+        return new Promise((resolve, reject) => {
+          courseRef
+            .remove()
+            .then(() => {
+              resolve();
+            })
+            .catch((error) => {
+              reject(error);
+            });
+        });
+      }
+
+      function addNewImageCard() {
+        // Implement the logic for adding a new image card for teachers here
+        // For example:
+        var imageCard = document.createElement("div");
+        imageCard.className = "card image-card";
+        imageCard.innerHTML = `
+        <div class="card-body text-center">
+            <h5 class="card-title">新增課程</h5>
+            <button id="createCourseButton" class="btn btn-primary">新增</button>
+        </div>
+    `;
+        coursesList.appendChild(imageCard);
+        // 為新增按鈕添加點擊事件
+        const createCourseButton =
+          document.getElementById("createCourseButton");
+        createCourseButton.addEventListener("click", function () {
+          window.location.href = "createCourse.html";
+        });
+        // Add any additional logic or event listeners as needed
+      }
+
+      function checkIfUserIsStudent(userId, callback) {
+        console.log("正在檢查用戶角色，用戶ID：" + userId);
+        var studentRef = firebase.database().ref("userRoles/student/" + userId);
+
+        studentRef.once("value", function (snapshot) {
+          if (snapshot.exists()) {
+            console.log("用戶是學生");
+            callback(true);
+          } else {
+            console.log("用戶不是學生，檢查是否為老師");
+            var teacherRef = firebase
+              .database()
+              .ref("userRoles/teacher/" + userId);
+            teacherRef.once("value", function (snapshot) {
+              if (snapshot.exists()) {
+                console.log("用戶是老師");
+                callback(false);
+              } else {
+                console.log("用戶既不是學生也不是老師");
+                callback(false);
+              }
+            });
+          }
+        });
+      }
+      function checkAuthStatus() {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            // 用戶已登入
+            var username = user.email.split("@")[0]; // 使用電子郵件的 @ 前字串作為 username
+            document.getElementById(
+              "userLoginStatus"
+            ).innerHTML = `歡迎, <a href="#" id="displayName">${username}</a> <div id="dropdownMenu" class="dropdown-content">
+          <a href="profile.html">個人資料</a>
+          <a href="settings.html">設定</a>
+          <a href="#" id="logout">登出</a>
+      </div>`;
+
+            // 點擊用戶名時顯示下拉選單
+            document
+              .getElementById("displayName")
+              .addEventListener("click", function (event) {
+                event.preventDefault();
+                document.getElementById("dropdownMenu").style.display = "block";
+                event.stopPropagation(); // 阻止事件冒泡
+              });
+
+            // 點擊頁面其他地方時隱藏下拉選單
+            document.addEventListener("click", function (event) {
+              var isClickInsideElement = document
+                .getElementById("dropdownMenu")
+                .contains(event.target);
+              if (!isClickInsideElement) {
+                document.getElementById("dropdownMenu").style.display = "none";
+              }
+            });
+
+            // 登出處理
+            document
+              .getElementById("logout")
+              .addEventListener("click", function () {
+                firebase
+                  .auth()
+                  .signOut()
+                  .then(() => {
+                    window.location.href = "index.html"; // 重定向到首頁或其他你希望的頁面
+                    // 登出成功，重定向或更新UI
+                  })
+                  .catch((error) => {
+                    // 處理錯誤
+                  });
+              });
+          } else {
+            // 用戶未登入
+            document
+              .getElementById("loginLink")
+              .setAttribute("href", "index.html");
+          }
+        });
+      }
+
+      // 在頁面加載時調用
+      checkAuthStatus();
+    </script>
+  </body>
+</html>

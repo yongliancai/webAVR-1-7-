@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Pannellum Video Demo</title>
+    <link rel="stylesheet" href="https://cdn.pannellum.org/2.5/pannellum.css"/>
+    <script type="text/javascript" src="https://cdn.pannellum.org/2.5/pannellum.js"></script>
+    <script type="text/javascript" src="https://cdn.pannellum.org/2.5/videojs-pannellum-plugin.js"></script>
+    <link href="https://vjs.zencdn.net/7.1.0/video-js.css" rel="stylesheet"
+      type="text/css">
+    <script src="https://vjs.zencdn.net/7.1.0/video.js"></script>
+    <script src="videojs-pannellum-plugin.js"></script>
+</head>
+<body>
+
+<input type="file" id="videoFileInput" accept="video/*">
+
+<video id="panorama" class="video-js vjs-default-skin vjs-big-play-centered"
+  controls preload="none" style="width:100%;height:400px;"
+  poster="/images/video/jfk-poster.jpg" crossorigin="anonymous">
+    <p class="vjs-no-js">
+        To view this video please enable JavaScript, and consider upgrading to
+        a web browser that <a href="http://videojs.com/html5-video-support/"
+        target="_blank">supports HTML5 video</a>
+    </p>
+</video>
+
+<script>
+document.getElementById('videoFileInput').addEventListener('change', function() {
+    var file = this.files[0];
+    var videoElement = document.getElementById('panorama');
+    var sourceElement = document.createElement('source');
+
+    sourceElement.src = URL.createObjectURL(file);
+    sourceElement.type = file.type;
+
+    // 清空之前的源并添加新的源
+    videoElement.innerHTML = "";
+    videoElement.appendChild(sourceElement);
+
+    // 重新加载视频元素以更新源
+    videoElement.load();
+    videojs('panorama', {
+        plugins: {
+            pannellum: {}
+        }
+    });
+});
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Live Screen Share</title>
+    <style>
+        #video {
+            width: 800px;
+            height: 600px;
+        }
+    </style>
+    <meta charset="utf-8">
+</head>
+<body>
+    <button id="startButton">Start Sharing</button>
+    <button id="joinButton">Join Stream</button>
+    <video id="video" autoplay></video>
+    
+    <script>
+        const startButton = document.getElementById('startButton');
+        const joinButton = document.getElementById('joinButton');
+        const video = document.getElementById('video');
+
+        // Connect to the signaling server
+        const signaling = new WebSocket('ws://localhost:8080');
+
+        // Configuration for the peer connection
+        const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]};
+
+        // Create the peer connection
+        const pc = new RTCPeerConnection(configuration);
+        
+        pc.onicecandidate = ({candidate}) => {
+            if (candidate) {
+                console.log('ICE candidate: ', candidate);
+                signaling.send(JSON.stringify({ 'candidate': candidate }));
+            }
+        };
+        
+        pc.ontrack = (event) => {
+            console.log('ontrack event: ', event);
+            video.srcObject = event.streams[0];
+        };
+        
+        startButton.onclick = async () => {
+            startButton.disabled = true;
+            joinButton.disabled = true;
+            
+            try {
+                // Get media stream
+                const mediaStream = await navigator.mediaDevices.getDisplayMedia({video: true});
+                video.srcObject = mediaStream;
+                
+                // Add stream to the connection
+                mediaStream.getTracks().forEach(track => pc.addTrack(track, mediaStream));
+                
+                // Create offer, set local description, and send offer to the remote peer through signaling server
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                console.log('Offer: ', offer);
+                signaling.send(JSON.stringify({ 'offer': offer }));
+                
+            } catch (error) {
+                console.error('Error sharing screen: ', error);
+                startButton.disabled = false;
+                joinButton.disabled = false;
+            }
+        };
+        
+        joinButton.onclick = async () => {
+            startButton.disabled = true;
+            joinButton.disabled = true;
+        };
+        
+        signaling.onmessage = async (event) => {
+            let message;
+            
+            // Check if event data is Blob
+            if (event.data instanceof Blob) {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    message = JSON.parse(reader.result);
+                    await processMessage(message);
+                };
+                reader.readAsText(event.data);
+            } else {
+                message = JSON.parse(event.data);
+                await processMessage(message);
+            }
+        };
+        
+        const processMessage = async (message) => {
+            // If there's an offer, respond with an answer
+            if (message.offer) {
+                console.log('Received offer: ', message.offer);
+                await pc.setRemoteDescription(new RTCSessionDescription(message.offer)).catch(err => console.error('Error setting remote description: ', err));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                signaling.send(JSON.stringify({ 'answer': answer }));
+            }
+
+            // If there's an answer, set it as the remote description
+            if (message.answer) {
+                console.log('Received answer: ', message.answer);
+                await pc.setRemoteDescription(new RTCSessionDescription(message.answer)).catch(err => console.error('Error setting remote description: ', err));
+            }
+
+            // If there's an ICE candidate, add it to the peer connection
+            if (message.candidate) {
+                console.log('Received ICE candidate: ', message.candidate);
+                await pc.addIceCandidate(message.candidate).catch(err => console.error('Error adding ICE candidate: ', err));
+            }
+        };
+    </script>
+</body>
+</html>

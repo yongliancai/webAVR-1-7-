@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>好友列表</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-auth.js"></script>
+</head>
+<body>
+    <h1>我的好友</h1>
+    <p id="myStatus">我的狀態: <span id="myOnlineStatus"></span></p>
+    <ul id="friendsList">
+        <!-- 好友列表將在這裡動態生成 -->
+    </ul>
+    <input type="text" id="friendId" placeholder="輸入好友的ID">
+    <button onclick="addFriend()">添加好友</button>
+    
+    <script>
+        // 初始化 Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+            authDomain: "webavr-b9273.firebaseapp.com",
+            projectId: "webavr-b9273",
+            storageBucket: "webavr-b9273.appspot.com",
+            messagingSenderId: "240463881336",
+            appId: "1:240463881336:web:6642598bf894378f2ff98d",
+            measurementId: "G-6Q7ZQ22WJN"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+
+        // 模擬用戶登錄 (實際應用應使用真實身份驗證)
+        var userId;
+        var currentUserEmail; // 你需要根據實際情況設置這個變量
+        var user;
+        var email;
+        var username;
+        // 更新自己的在线状态
+        firebase.database().ref('/users/' + userId + '/status').on('value', function(statusSnapshot) {
+        document.getElementById('myOnlineStatus').innerText = statusSnapshot.val() ? '上線中' : '下線中';
+        });
+
+
+        firebase.auth().onAuthStateChanged(function(user) {
+            if (user) {
+                email = user.email;
+                console.log(email);
+                username = email.split('@')[0];
+                console.log('当前用户:', username);
+                firebase.database().ref('/status/' + username).set(true);
+            } else {
+                // 用户未登录或已注销
+                username = null;
+                console.log('当前用户: 未登录');
+            }
+        });
+        
+
+        function listenToFriendStatus() {
+            firebase.database().ref('/users/' + userId + '/friends').on('value', function(snapshot) {
+                snapshot.forEach(function(friendSnapshot) {
+                var friendId = friendSnapshot.key;
+                firebase.database().ref('/users/' + friendId + '/status').on('value', function(statusSnapshot) {
+                    var statusElement = document.getElementById('status-' + friendId);
+                    if (statusElement) {
+                    statusElement.innerText = statusSnapshot.val() ? '上線中' : '下線中';
+                    }
+                });
+                });
+            });
+        }
+
+            // 初始化时开始监听
+        listenToFriendStatus();
+
+
+        function addFriend() {
+            var friendId = document.getElementById('friendId').value; // 從輸入獲取好友ID
+            console.log("輸入的friendID" + "：" + friendId);
+
+            // 檢查使用者是否存在
+            firebase.database().ref('/users' + "ID").once('value', function(snapshot) {
+                if (snapshot.exists()) {
+                    // 檢查是否添加自己
+                    if (friendId === userId) {
+                        alert("不能添加自己為好友!");
+                        return;
+                    }
+
+                    // 將好友添加到當前用戶的好友列表
+                    firebase.database().ref('/users/ID' + userId + '/friends/ID' + friendId).set(true);
+
+                    // 更新好友列表的前端表示（你可以在此處添加相關代碼）
+
+                } else {
+                    alert("此使用者不存在!");
+                }
+            });
+        }
+
+        function loadFriends() {
+            firebase.database().ref('/users/' + userId + '/friends').on('value', function(snapshot) {
+                var friendsList = document.getElementById('friendsList');
+                friendsList.innerHTML = ''; // 清空现有列表
+
+                snapshot.forEach(function(friendSnapshot) {
+                var friendId = friendSnapshot.key;
+                // 获取好友名字
+                firebase.database().ref('/users/' + friendId + '/name').once('value', function(nameSnapshot) {
+                    var li = document.createElement("li");
+                    li.innerHTML = "用户名: " + nameSnapshot.val() + ", 状态: <span id='status-" + friendId + "'></span>";
+                    friendsList.appendChild(li);
+                });
+                });
+            });
+        }
+
+            // 初始化时加载好友列表
+        loadFriends();
+
+
+
+
+        function appendFriendToList(friendId, friendEmail) {
+            var friendsList = document.getElementById('friendsList');
+            var li = document.createElement("li");
+            li.id = "user-" + friendId;
+            li.innerHTML = "用戶名: " + friendEmail + ", 狀態: <span id='status-" + friendId + "'></span>";
+            friendsList.appendChild(li);
+        }
+
+        function checkIfUserExists(email, callback) {
+            firebase.database().ref('users').orderByChild('email').equalTo(email).once('value')
+            .then(snapshot => {
+                if (snapshot.exists()) {
+                    var userId = Object.keys(snapshot.val())[0]; // 假設ID是存儲在key中
+                    callback(true, userId);
+                } else {
+                    callback(false);
+                }
+            });
+        }
+
+
+        // 假設已有好友列表，創建監聽器
+        var friends = ["friend-456", "friend-789"];
+        friends.forEach(friendId => listenToFriendStatus(friendId));
+    </script>
+</body>
+</html>

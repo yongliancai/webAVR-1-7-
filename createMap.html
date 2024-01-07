@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>圖片標記網頁</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+      }
+
+      #imageContainer {
+        position: relative;
+        margin-bottom: 20px;
+      }
+
+      #imageContainer img {
+        max-width: 500px;
+        max-height: 500px;
+      }
+
+      #markerList {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .marker {
+        width: 50px;
+        height: 50px;
+        position: absolute;
+        background-size: cover;
+        display: none; /* 初始狀態設為不顯示 */
+      }
+      .marker:hover {
+        border-color: blue;
+      }
+
+      #uploadButton {
+        position: relative;
+        z-index: 4;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="logo">
+        <a href="#">
+          <img src="slogo.png" style="width: 50px; height: 50px" />
+        </a>
+      </div>
+      <nav>
+        <ul class="navList">
+          <li><a href="showCourse.html">編輯區</a></li>
+          <li><a href="universe.html">共享區</a></li>
+          <li><a href="personal.html">個人頁</a></li>
+          <li><a href="jistsi.html">直播</a></li>
+          <li id="userLoginStatus">
+            <a href="#" id="loginLink">登入</a>
+            <!-- 下拉選單的部分 -->
+            <div id="dropdownMenu" class="dropdown-content">
+              <a href="profile.html">個人資料</a>
+              <a href="settings.html">設定</a>
+              <a href="#" id="logout">登出</a>
+            </div>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <!--
+  <h1>圖片標記網頁</h1>
+-->
+
+    <div id="imageContainer">
+      <img id="uploadedImage" src="" alt="上傳的圖片" />
+    </div>
+
+    <div id="markerList">
+      <button id="uploadButton" onclick="uploadImage()">上傳圖片</button>
+      <button id="addMarkerButton" onclick="startDrawing()">新增標記</button>
+    </div>
+    <div id="tagIcon" style="position: absolute; display: none">🏷️</div>
+    <script src="https://www.gstatic.com/firebasejs/8.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.7.1/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.7.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-auth.js"></script>
+    <script>
+      // Initialize Firebase
+      var firebaseConfig = {
+        apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+        authDomain: "webavr-b9273.firebaseapp.com",
+        projectId: "webavr-b9273",
+        storageBucket: "webavr-b9273.appspot.com",
+        messagingSenderId: "240463881336",
+        appId: "1:240463881336:web:6642598bf894378f2ff98d",
+        measurementId: "G-6Q7ZQ22WJN",
+      };
+      firebase.initializeApp(firebaseConfig);
+
+      var storage = firebase.storage();
+      var database = firebase.database();
+
+      var uploadedImage = document.getElementById("uploadedImage");
+      var markerList = document.getElementById("markerList");
+
+      var markers = [];
+      var isDrawing = false;
+      var startX, startY;
+      var endX, endY;
+      var user = firebase.auth().currentUser;
+      var imageName;
+      var username;
+      var email;
+      var markerText;
+      var downloadimgURL;
+      let isMarking = false;
+      let isPlaced = false; // 用來記錄是否已放置標記
+      let currentMarker = null;
+
+      // 獲取 URL 中的 query parameters
+      const queryString = window.location.search;
+      const urlParams = new URLSearchParams(queryString);
+      // 讀取特定的 query parameters
+      const category = urlParams.get("category");
+      const course = urlParams.get("course");
+      var mapLastName = urlParams.get("map");
+
+      // 在控制台上顯示讀取到的值
+      console.log("Category:", category);
+      console.log("Course:", course);
+      console.log("mapLastName:", mapLastName);
+
+      function uploadImage() {
+        var fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.addEventListener("change", handleFileUpload);
+        fileInput.click();
+      }
+
+      function handleFileUpload(event) {
+        var file = event.target.files[0];
+        var storageRef = storage.ref("images/" + file.name);
+
+        storageRef
+          .put(file)
+          .then(function (snapshot) {
+            console.log("上傳成功");
+            alert("上傳成功，載入圖片中");
+            return snapshot.ref.getDownloadURL();
+          })
+          .then(function (downloadURL) {
+            uploadedImage.src = downloadURL;
+            console.log(downloadURL);
+            imageName = file.name.split(".")[0]; // 更新 imageName 變數
+            console.log("imageName:", imageName); // 添加調試輸出
+            mapLastName = imageName;
+            var mapImgURL = {
+              URL: downloadURL,
+            };
+            if (mapLastName == null) {
+              mapLastName = imageName;
+            }
+            var courseRef = database.ref(
+              username +
+                "/course/" +
+                category +
+                "/" +
+                course +
+                "/map/" +
+                imageName
+            );
+            var databaseRef = database.ref(username + "/map/" + imageName);
+
+            // 檢查資料庫是否已存在相應的節點
+            courseRef.once("value").then(function (snapshot) {
+              if (snapshot.exists()) {
+                // 如果節點存在，使用 update 方法更新資料
+                courseRef
+                  .update(mapImgURL)
+                  .then(function () {
+                    console.log("更新URL節點成功");
+                  })
+                  .catch(function (error) {
+                    console.log("更新URL節點失敗:", error);
+                  });
+              } else {
+                // 如果節點不存在，使用 set 方法創建新的資料節點
+                courseRef
+                  .set(mapImgURL)
+                  .then(function () {
+                    console.log("創建URL節點成功");
+                  })
+                  .catch(function (error) {
+                    console.log("創建URL節點失敗:", error);
+                  });
+              }
+            });
+            // 檢查資料庫是否已存在相應的節點
+            databaseRef
+              .once("value")
+              .then(function (snapshot) {
+                if (snapshot.exists()) {
+                  // 如果節點存在，使用 update 方法更新資料
+                  databaseRef
+                    .update(mapImgURL)
+                    .then(function () {
+                      console.log("更新URL節點成功");
+                    })
+                    .catch(function (error) {
+                      console.log("更新URL節點失敗:", error);
+                    });
+                } else {
+                  // 如果節點不存在，使用 set 方法創建新的資料節點
+                  databaseRef
+                    .set(mapImgURL)
+                    .then(function () {
+                      console.log("創建URL節點成功");
+                    })
+                    .catch(function (error) {
+                      console.log("創建URL節點失敗:", error);
+                    });
+                }
+              })
+              .catch(function (error) {
+                console.log("map圖片上傳失敗:", error);
+              });
+          });
+      }
+
+      function startDrawing() {
+        isMarking = true;
+        currentMarker = document.createElement("div");
+        currentMarker.className = "marker";
+        currentMarker.style.backgroundImage = "url('mapLogo.png')";
+        currentMarker.style.width = "50px";
+        currentMarker.style.height = "50px";
+        currentMarker.style.backgroundSize = "cover";
+        currentMarker.style.position = "absolute";
+        currentMarker.style.display = "block";
+
+        document.body.appendChild(currentMarker);
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("click", handleMouseClick);
+      }
+
+      function handleMouseMove(event) {
+        if (isMarking && currentMarker) {
+          currentMarker.style.left = event.pageX - 25 + "px";
+          currentMarker.style.top = event.pageY - 25 + "px";
+        }
+      }
+
+      function handleMarkerClick(event) {
+        // 這裡可以進行其他操作，例如彈出一個選項框或跳轉頁面
+        const markerName = event.target.getAttribute("data-name");
+        console.log(mapLastName, markerName);
+        if (!mapLastName || !markerName) {
+          console.error("Image name or marker name not found.");
+          return;
+        }
+
+        const confirmEntry = confirm(`是否進入 ${markerName} 標記？`);
+        if (confirmEntry) {
+          // 將 mapLastName 和 markerName 作為 query parameters 附加到 URL
+          const redirectTo = `show360.html?mapLastName=${encodeURIComponent(
+            mapLastName
+          )}&markerName=${encodeURIComponent(markerName)}`;
+
+          // 重新導向到 show360.html，並攜帶 query parameters
+          window.location.href = redirectTo;
+        }
+      }
+
+      function handleMouseClick(event) {
+        if (isMarking) {
+          if (!isPlaced) {
+            isPlaced = true; // 設定標記已放置
+          } else {
+            isMarking = false;
+            isPlaced = false;
+
+            var imageRect = uploadedImage.getBoundingClientRect();
+            var markerX = event.pageX - imageRect.left - window.scrollX;
+            var markerY = event.pageY - imageRect.top - window.scrollY;
+
+            console.log(`Marker placed at (${markerX}, ${markerY})`);
+
+            let markerName = prompt("Enter marker name:");
+            console.log(`Marker name is ${markerName}`);
+            saveMarkerToDatabase(markerX, markerY, markerName);
+
+            currentMarker.setAttribute("data-name", markerName);
+            currentMarker.addEventListener("click", handleMarkerClick);
+
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("click", handleMouseClick);
+          }
+        }
+      }
+
+      function stopDrawing() {
+        isMarking = false;
+
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("click", handleMouseClick);
+        document.body.removeChild(currentMarker); // 從 body 移除 currentMarker
+        currentMarker = null;
+      }
+
+      function saveMarkerToDatabase(x, y, name) {
+        currentMarker.markerName = name;
+        const markerData = {
+          x: x,
+          y: y,
+          name: name,
+        };
+        var databaseRef = database.ref(
+          sanitizeFirebaseKey(username) +
+            "/map/" +
+            sanitizeFirebaseKey(imageName) +
+            "/markers/" +
+            sanitizeFirebaseKey(name)
+        );
+        databaseRef
+          .set(markerData)
+          .then(function () {
+            console.log("創建節點成功");
+            alert("標記儲存成功");
+          })
+          .catch(function (error) {
+            console.log("創建節點失敗:", error);
+            alert("儲存失敗，標記點名稱須以xx命名");
+            // 移除畫面上的標記
+            if (currentMarker) {
+              currentMarker.remove();
+            }
+          });
+      }
+      function sanitizeFirebaseKey(key) {
+        return key.replace(/[.#$[\]]/g, "_");
+      }
+
+      function handleMouseDown(event) {
+        isDrawing = true;
+        startX = event.clientX - uploadedImage.offsetLeft;
+        startY = event.clientY - uploadedImage.offsetTop;
+        uploadedImage.addEventListener("mousemove", handleMouseMove);
+      }
+
+      // 從數據庫讀取 markers 數據
+      function loadMarkers(mapName, username){
+        var markersRef = database.ref(
+          username + "/map/" + mapName + "/markers/"
+        );
+        markersRef.once("value", function (snapshot) {
+          snapshot.forEach(function (markerSnapshot) {
+            var markerData = markerSnapshot.val();
+            console.log(markerData);
+            displayMarker(markerData); // 在頁面上顯示每個 marker
+          });
+        });
+      }
+
+      function displayMarker(markerData) {
+        var marker = document.createElement("div");
+        marker.className = "marker";
+        marker.style.backgroundImage = "url('mapLogo.png')";
+        marker.style.width = "50px";
+        marker.style.height = "50px";
+        marker.style.backgroundSize = "cover";
+        marker.style.position = "absolute";
+        marker.style.display = "block";
+
+        var imageRect = uploadedImage.getBoundingClientRect();
+        var adjustedX = markerData.x - 25; // 加回偏移量
+        var adjustedY = markerData.y - 50; // 加回偏移量
+
+        marker.style.left = imageRect.left + window.scrollX + adjustedX + "px";
+        marker.style.top = imageRect.top + window.scrollY + adjustedY + "px";
+        marker.setAttribute("data-name", markerData.name); // 确保这里设置了 data-name 属性
+        marker.addEventListener("click", handleMarkerClick);
+
+        document.body.appendChild(marker);
+      }
+
+      function checkIfUserIsStudent(userId, callback) {
+        console.log("正在檢查用戶角色，用戶ID：" + userId);
+        var studentRef = firebase.database().ref("userRoles/student/" + userId);
+
+        studentRef.once("value", function (snapshot) {
+          if (snapshot.exists()) {
+            console.log("用戶是學生");
+            callback(true);
+          } else {
+            console.log("用戶不是學生，檢查是否為老師");
+            var teacherRef = firebase
+              .database()
+              .ref("userRoles/teacher/" + userId);
+            teacherRef.once("value", function (snapshot) {
+              if (snapshot.exists()) {
+                console.log("用戶是老師");
+                callback(false);
+              } else {
+                console.log("用戶既不是學生也不是老師");
+                callback(false);
+              }
+            });
+          }
+        });
+      }
+
+      window.addEventListener("DOMContentLoaded", function (event) {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            email = user.email;
+            username = email.split("@")[0];
+            console.log("当前用户:", username);
+            checkIfUserIsStudent(username, function (isStudent) {
+              if (isStudent) {
+                var stuTeaRef = firebase
+                  .database()
+                  .ref(
+                    "/userRoles/" + "/student/" + username + "/yourTeacherName/"
+                  );
+                stuTeaRef.once("value", (snapshot) => {
+                  var yourTeacherName = snapshot.val();
+                  console.log("yourTeacherName：" + yourTeacherName);
+                  username = yourTeacherName;
+                  var urlParams = new URLSearchParams(window.location.search);
+                    var mapRef = database.ref(username + "/map/" + mapLastName + "/URL/")
+                    mapRef.once("value").then(function (snapshot) {
+                      var mapData = snapshot.val();
+                      console.log(mapData);
+                      // 使用 mapData 進行操作，例如顯示地圖數據
+                      if (mapData) {
+                        document.getElementById("uploadedImage").src = mapData;
+                        loadMarkers(mapLastName, username); // 加載 markers
+                      }
+                    });
+                  })
+                
+              } else {
+                var urlParams = new URLSearchParams(window.location.search);
+                var mapName = urlParams.get("map");
+                if (mapName) {
+                  // 使用 mapName 從 Firebase 讀取數據
+                  // 例如：讀取特定地圖的數據並顯示
+                  var mapRef = database.ref(
+                    username + "/map/" + mapName + "/URL/"
+                  );
+                  mapRef.once("value").then(function (snapshot) {
+                    var mapData = snapshot.val();
+                    console.log(mapData);
+                    // 使用 mapData 進行操作，例如顯示地圖數據
+                    if (mapData) {
+                      document.getElementById("uploadedImage").src = mapData;
+                      loadMarkers(mapLastName, username); // 加載 markers
+                    }
+                  });
+                }
+              }
+            });
+          } else {
+            // 用户未登录或已注销
+            username = null;
+            console.log("当前用户: 未登录");
+          }
+        });
+      });
+      function checkAuthStatus() {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            // 用戶已登入
+            var username = user.email.split("@")[0]; // 使用電子郵件的 @ 前字串作為 username
+            document.getElementById(
+              "userLoginStatus"
+            ).innerHTML = `歡迎, <a href="#" id="displayName">${username}</a> <div id="dropdownMenu" class="dropdown-content">
+          <a href="profile.html">個人資料</a>
+          <a href="settings.html">設定</a>
+          <a href="#" id="logout">登出</a>
+      </div>`;
+
+            // 點擊用戶名時顯示下拉選單
+            document
+              .getElementById("displayName")
+              .addEventListener("click", function (event) {
+                event.preventDefault();
+                document.getElementById("dropdownMenu").style.display = "block";
+                event.stopPropagation(); // 阻止事件冒泡
+              });
+
+            // 點擊頁面其他地方時隱藏下拉選單
+            document.addEventListener("click", function (event) {
+              var isClickInsideElement = document
+                .getElementById("dropdownMenu")
+                .contains(event.target);
+              if (!isClickInsideElement) {
+                document.getElementById("dropdownMenu").style.display = "none";
+              }
+            });
+
+            // 登出處理
+            document
+              .getElementById("logout")
+              .addEventListener("click", function () {
+                firebase
+                  .auth()
+                  .signOut()
+                  .then(() => {
+                    window.location.href = "index.html"; // 重定向到首頁或其他你希望的頁面
+                    // 登出成功，重定向或更新UI
+                  })
+                  .catch((error) => {
+                    // 處理錯誤
+                  });
+              });
+          } else {
+            // 用戶未登入
+            document
+              .getElementById("loginLink")
+              .setAttribute("href", "index.html");
+          }
+        });
+      }
+      // 在頁面加載時調用
+      checkAuthStatus();
+    </script>
+  </body>
+</html>

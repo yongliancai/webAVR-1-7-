@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>好友制度和聊天室</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-firestore.js"></script>
+    <style>
+        /* ...CSS樣式... */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f1f1f1;
+            margin: 0;
+            padding: 0;
+        }
+
+        #friendListContainer {
+            background-color: #fff;
+            width: 300px;
+            padding: 20px;
+            box-sizing: border-box;
+            height: 100%;
+            float: left;
+        }
+
+        #friendListContainer h2 {
+            margin-top: 0;
+        }
+
+        #friendList {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #friendList li {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #friendList li:last-child {
+            border-bottom: none;
+        }
+
+        #friendList li:hover {
+            background-color: #f9f9f9;
+        }
+
+        #chatContainer {
+            background-color: #fff;
+            margin-left: 320px;
+            padding: 20px;
+            box-sizing: border-box;
+            height: 100%;
+        }
+
+        #chatMessages {
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+
+        .message {
+            padding: 5px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .sent {
+            background-color: #e2eaff;
+            text-align: right;
+        }
+
+        .received {
+            background-color: #fff;
+            text-align: left;
+        }
+
+        #chatInputContainer {
+            display: flex;
+        }
+
+        #chatInput {
+            flex-grow: 1;
+            padding: 5px;
+        }
+
+        #chatButton {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="friendListContainer">
+        <h2>好友列表</h2>
+        <ul id="friendList"></ul>
+
+        <!-- 新增加入好友的表單 -->
+        <div id="addFriendForm">
+            <input type="text" id="friendEmailInput" placeholder="輸入好友的Email">
+            <button onclick="addFriend()">加入好友</button>
+        </div>
+    </div>
+
+    <div id="chatContainer">
+        <h2 id="chatUserName">聊天室</h2>
+        <div id="chatMessages"></div>
+        <form id="chatInputContainer">
+            <input type="text" id="chatInput" placeholder="輸入訊息">
+            <button type="submit" id="chatButton">送出</button>
+        </form>
+    </div>
+
+
+    <script>
+        const firebaseConfig = {
+        apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+        authDomain: "webavr-b9273.firebaseapp.com",
+        databaseURL: "https://webavr-b9273-default-rtdb.firebaseio.com",
+        projectId: "webavr-b9273",
+        storageBucket: "webavr-b9273.appspot.com",
+        messagingSenderId: "240463881336",
+        appId: "1:240463881336:web:6642598bf894378f2ff98d",
+        measurementId: "G-6Q7ZQ22WJN"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        // 監聽使用者登入狀態變化
+        firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+            // 使用者已登入
+            var currentUser = user;
+            console.log("使用者已登入");
+            // 獲取使用者資訊
+            var db = firebase.firestore();
+            var usersRef = db.collection("users");
+            var chatMessagesRef = db.collection("chatMessages");
+
+            // 加載好友列表
+            loadFriendList(currentUser, usersRef, chatMessagesRef);
+
+            // 監聽好友列表的點擊事件
+            document.getElementById("friendList").addEventListener("click", function(event) {
+                var friendId = event.target.getAttribute("data-friend-id");
+                var friendName = event.target.innerText;
+
+                // 更新聊天區域的內容
+                updateChatArea(friendId, friendName, chatMessagesRef);
+            });
+
+            // 實現發送訊息功能
+            document.getElementById("chatInputContainer").addEventListener("submit", function(event) {
+                event.preventDefault();
+                var message = document.getElementById("chatInput").value;
+
+                // 建立訊息物件
+                var newMessage = {
+                    senderId: currentUser.uid,
+                    senderName: currentUser.displayName,
+                    recipientId: currentFriendId,
+                    recipientName: currentFriendName,
+                    message: message,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                // 儲存訊息到Firestore
+                chatMessagesRef.add(newMessage)
+                    .then(function(docRef) {
+                        // 訊息儲存成功
+                        document.getElementById("chatInput").value = "";
+                    })
+                    .catch(function(error) {
+                        // 訊息儲存失敗
+                        console.error("Error sending message: ", error);
+                    });
+            });
+        } else {
+            // 使用者未登入，重導向到登入頁面
+            window.location.href = "login.html";
+        }
+        });
+        
+
+        function loadFriendList() {
+            var currentUser = firebase.auth().currentUser;
+            var currentUserEmailPrefix = currentUser.email.split('@')[0];
+            var friendListRef = firebase.database().ref(currentUserEmailPrefix + '/friends/');
+
+            friendListRef.on('value', function(snapshot) {
+                var friendListContainer = document.getElementById("friendList");
+                friendListContainer.innerHTML = ""; // 清空好友列表
+
+                snapshot.forEach(function(childSnapshot) {
+                var friendId = childSnapshot.key; // 使用節點名稱作為好友名稱
+                var listItem = document.createElement("div"); // 使用 div 代替 li
+                listItem.textContent = friendId;
+                listItem.setAttribute("data-friend-id", friendId);
+
+                // 添加按鈕或其他元素...
+                var chatButton = document.createElement("button");
+                chatButton.textContent = "聊天";
+                chatButton.addEventListener("click", function(event) {
+                    // 聊天按鈕的事件處理器
+                });
+
+                var profileButton = document.createElement("button");
+                profileButton.textContent = "觀看個人檔案";
+                profileButton.addEventListener("click", function(event) {
+                    // 觀看個人檔案的事件處理器
+                });
+
+                listItem.appendChild(chatButton);
+                listItem.appendChild(profileButton);
+
+                friendListContainer.appendChild(listItem);
+                });
+            });
+        }
+
+
+
+
+// 更新聊天區域的內容
+var currentFriendId = "";
+var currentFriendName = "";
+
+function updateChatArea(friendId, friendName, chatMessagesRef) {
+  currentFriendId = friendId;
+  currentFriendName = friendName;
+  document.getElementById("chatUserName").innerText = friendName;
+
+  // 監聽聊天訊息的變化
+  chatMessagesRef.where("senderId", "in", [firebase.auth().currentUser.uid, friendId])
+      .where("recipientId", "in", [firebase.auth().currentUser.uid, friendId])
+      .orderBy("timestamp")
+      .onSnapshot(function(snapshot) {
+          var chatMessagesContainer = document.getElementById("chatMessages");
+          chatMessagesContainer.innerHTML = "";
+
+          snapshot.forEach(function(doc) {
+              var messageData = doc.data();
+              var message = document.createElement("div");
+              message.className = "message";
+
+              if (messageData.senderId === firebase.auth().currentUser.uid) {
+                  message.classList.add("sent");
+              } else {
+                  message.classList.add("received");
+              }
+
+              var messageText = document.createElement("p");
+              messageText.textContent = messageData.message;
+
+              message.appendChild(messageText);
+              chatMessagesContainer.appendChild(message);
+          });
+
+          // 滾動到最新訊息
+          chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+      });
+}
+
+// 顯示聊天區域並更新內容
+function showChat() {
+  document.getElementById("chatContainer").style.display = "block";
+  updateChatArea(currentFriendId, currentFriendName, chatMessagesRef);
+}
+
+// 傳送訊息
+function sendMessage() {
+  var message = document.getElementById("chatInput").value;
+
+  // ...
+
+  // 儲存訊息到Firestore
+  chatMessagesRef.add(newMessage)
+      .then(function(docRef) {
+          // 訊息儲存成功
+          document.getElementById("chatInput").value = "";
+      })
+      .catch(function(error) {
+          // 訊息儲存失敗
+          console.error("Error sending message: ", error);
+      });
+}
+
+function addFriend() {
+  var friendEmail = document.getElementById('friendEmailInput').value;
+
+  // 用 Firebase Auth 查找此 email 是否有用戶
+  firebase.auth().fetchSignInMethodsForEmail(friendEmail)
+    .then((signInMethods) => {
+      if (signInMethods.length === 0) {
+        console.log("查無此用戶");
+        return;
+      }
+
+      // 取得目前使用者的 email 前字串
+      var currentUser = firebase.auth().currentUser;
+      var currentUserEmailPrefix = currentUser.email.split('@')[0];
+
+      // 取得目前使用者的好友列表路徑
+      var friendsRef = firebase.database().ref(currentUserEmailPrefix + "/friends");
+
+      // 使用 friendEmail 作為 key
+      var friendKey = friendEmail.split('@')[0];
+
+      // 檢查好友是否已存在
+      friendsRef.child(friendKey).once("value")
+        .then(function(snapshot) {
+          if (snapshot.exists()) {
+            console.log("該好友已存在於你的好友列表中");
+            return;
+          }
+
+          // 將好友加入目前使用者的好友列表
+          var updates = {};
+          updates[friendKey] = true; // 使用 true 或其它值作為標記
+          friendsRef.update(updates)
+            .then(function() {
+              console.log("成功加入好友");
+            })
+            .catch(function(error) {
+              console.error("加入好友失敗：", error);
+            });
+        })
+        .catch(function(error) {
+          console.error("獲取目前使用者資料失敗：", error);
+        });
+    })
+    .catch((error) => {
+      console.error("查找使用者失敗：", error);
+    });
+}
+
+
+  
+  
+    </script>
+</body>
+</html>
