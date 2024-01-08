@@ -1,52 +1,191 @@
 <!DOCTYPE html>
-    <html>
-      <head>
-        <script src='https://8x8.vc/vpaas-magic-cookie-748a0a5acc9c425f997f01ed416da927/external_api.js' async></script>
-        <style>html, body, #jaas-container { height: 100%; }</style>
-        <script type="text/javascript">
-          window.onload = () => {
-            const api = new JitsiMeetExternalAPI("8x8.vc", {
-              roomName: "vpaas-magic-cookie-748a0a5acc9c425f997f01ed416da927/SampleAppPureEntrancesProduceBarely",
-              parentNode: document.querySelector('#jaas-container'),
-							// Make sure to include a JWT if you intend to record,
-							// make outbound calls or use any other premium features!
-							// jwt: "eyJraWQiOiJ2cGFhcy1tYWdpYy1jb29raWUtNzQ4YTBhNWFjYzljNDI1Zjk5N2YwMWVkNDE2ZGE5MjcvMzQzYTdhLVNBTVBMRV9BUFAiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJqaXRzaSIsImlzcyI6ImNoYXQiLCJpYXQiOjE2OTA4NjQyNjUsImV4cCI6MTY5MDg3MTQ2NSwibmJmIjoxNjkwODY0MjYwLCJzdWIiOiJ2cGFhcy1tYWdpYy1jb29raWUtNzQ4YTBhNWFjYzljNDI1Zjk5N2YwMWVkNDE2ZGE5MjciLCJjb250ZXh0Ijp7ImZlYXR1cmVzIjp7ImxpdmVzdHJlYW1pbmciOmZhbHNlLCJvdXRib3VuZC1jYWxsIjpmYWxzZSwic2lwLW91dGJvdW5kLWNhbGwiOmZhbHNlLCJ0cmFuc2NyaXB0aW9uIjpmYWxzZSwicmVjb3JkaW5nIjpmYWxzZX0sInVzZXIiOnsiaGlkZGVuLWZyb20tcmVjb3JkZXIiOmZhbHNlLCJtb2RlcmF0b3IiOnRydWUsIm5hbWUiOiJUZXN0IFVzZXIiLCJpZCI6Imdvb2dsZS1vYXV0aDJ8MTE3NjY3NjM2NjY4ODU2MTE1NDIxIiwiYXZhdGFyIjoiIiwiZW1haWwiOiJ0ZXN0LnVzZXJAY29tcGFueS5jb20ifX0sInJvb20iOiIqIn0.UQVD52-ITt6ouXZyEGOE-qWJehgOvAiRsURU-2koSKK1Jv153kK3UL_D3hHGyerlDJEv5mXDU93H8iHnR0gXjKS2ZA_FLsmC_NxTcRf3-Vfg9sHoeEsHPQ5iPNGzGcMRvHzglAgbWMrjpP20ouvc3uubamHKyuMB5wDtGiH_HNMR-hTEkwpuaVn0h0zzxKKWFEW28SyWtEsDwk8Toknufaq8-KXuI72ch1oRvvz5mMxoMfGvr4IXcvD_i2r-aJHO_se0n9z6dDbGYzlY1dDFIAad5TFzU76RRdlj0XjE1XzWa6U9zC0XbuJJkzJS1cvdpfvCYNA7rvE-rbVMk-lggA"
+<html>
+  <head>
+    <script src="https://8x8.vc/vpaas-magic-cookie-748a0a5acc9c425f997f01ed416da927/external_api.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-storage.js"></script>
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        flex: 0 0 60px;
+      }
+
+      #jaas-container {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">
+        <a href="#">
+          <img src="slogo.png" style="width: 50px; height: 50px" />
+        </a>
+      </div>
+      <nav>
+        <ul class="navList">
+          <li><a href="showCourse.html">編輯區</a></li>
+          <li><a href="universe.html">共享區</a></li>
+          <li><a href="personal.html">個人頁</a></li>
+          <li><a href="jistsi.html">直播</a></li>
+          <li id="userLoginStatus">
+            <a href="#" id="loginLink">登入</a>
+            <!-- 下拉選單的部分 -->
+            <div id="dropdownMenu" class="dropdown-content">
+              <a href="profile.html">個人資料</a>
+              <a href="settings.html">設定</a>
+              <a href="#" id="logout">登出</a>
+            </div>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <div id="jaas-container"></div>
+    <script>
+      // Initialize Firebase
+      var firebaseConfig = {
+        apiKey: "AIzaSyC4NzV-q4dBn_IytInpXlbbhEPaHJU9ULk",
+        authDomain: "webavr-b9273.firebaseapp.com",
+        projectId: "webavr-b9273",
+        storageBucket: "webavr-b9273.appspot.com",
+        messagingSenderId: "240463881336",
+        appId: "1:240463881336:web:6642598bf894378f2ff98d",
+        measurementId: "G-6Q7ZQ22WJN",
+      };
+      firebase.initializeApp(firebaseConfig);
+      window.addEventListener("DOMContentLoaded", function (event) {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            email = user.email;
+            username = email.split("@")[0];
+            console.log("当前用户:", username);
+
+            // 調用 checkIfUserIsStudent 函數，傳入使用者ID和回調函數
+            checkIfUserIsStudent(username, (isStudent) => {
+              const domain = "8x8.vc";
+              const options = {
+                roomName:
+                  "vpaas-magic-cookie-748a0a5acc9c425f997f01ed416da927/SampleAppPureEntrancesProduceBarely",
+                parentNode: document.querySelector("#jaas-container"),
+                configOverwrite: {
+                  disableDeepLinking: true,
+                },
+                interfaceConfigOverwrite: {
+                  TOOLBAR_BUTTONS: isStudent ? [] : ["microphone", "camera"], // 關閉/開啟功能列
+                  SHOW_JITSI_WATERMARK: false,
+                  SHOW_WATERMARK_FOR_GUESTS: false,
+                },
+                userInfo: {
+                  email: email,
+                  displayName: username,
+                },
+              };
+
+              // 初始化 JitsiMeetExternalAPI
+              const api = new JitsiMeetExternalAPI(domain, options);
+
+              // 如果是學生，則禁用音視訊
+              if (isStudent) {
+                api.executeCommand("setAudioMuted", true);
+                api.executeCommand("setVideoMuted", true);
+              }
             });
           }
-        </script>
-        <link rel="stylesheet" href="common.css">
-        <style>
-            html, body {
-                height: 100%;
-                margin: 0;
-                display: flex;
-                flex-direction: column;
-            }
+        });
+      });
 
-            header {
-                flex: 0 0 60px;
-            }
+      function checkIfUserIsStudent(username, callback) {
+        console.log("正在檢查用戶角色，用戶ID：" + username);
+        var studentRef = firebase.database().ref("userRoles/student/" + username);
 
-            #jaas-container {
-                flex: 1;
-            }
+        studentRef.once("value", function (snapshot) {
+          if (snapshot.exists()) {
+            console.log("用戶是學生");
+            callback(true);
+          } else {
+            console.log("用戶不是學生，檢查是否為老師");
+            var teacherRef = firebase
+              .database()
+              .ref("userRoles/teacher/" + username);
+            teacherRef.once("value", function (snapshot) {
+              if (snapshot.exists()) {
+                console.log("用戶是老師");
+                callback(false);
+              } else {
+                console.log("用戶既不是學生也不是老師");
+                callback(false);
+              }
+            });
+          }
+        });
+      }
+      function checkAuthStatus() {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            // 用戶已登入
+            var username = user.email.split("@")[0]; // 使用電子郵件的 @ 前字串作為 username
+            document.getElementById(
+              "userLoginStatus"
+            ).innerHTML = `歡迎, <a href="#" id="displayName">${username}</a> <div id="dropdownMenu" class="dropdown-content">
+          <a href="profile.html">個人資料</a>
+          <a href="settings.html">設定</a>
+          <a href="#" id="logout">登出</a>
+      </div>`;
 
-        </style>
-      </head>
-      <header>
-        <div class="logo">
-            <a href="#">
-                <img src="slogo.png" style="width:50px; height:50px;">
-            </a>
-        </div>
-        <nav>
-            <ul>
-                <li><a href="showCourse.html">編輯區</a></li>
-                <li><a href="universe.html">共享區</a></li>
-                <li><a href="personal.html">個人頁</a></li>
-                <li><a href="jistsi.html">直播</a></li>
-            </ul>
-        </nav>
-    </header>
-      <body><div id="jaas-container"></body>
-    </html>
+            // 點擊用戶名時顯示下拉選單
+            document
+              .getElementById("displayName")
+              .addEventListener("click", function (event) {
+                event.preventDefault();
+                document.getElementById("dropdownMenu").style.display = "block";
+                event.stopPropagation(); // 阻止事件冒泡
+              });
+
+            // 點擊頁面其他地方時隱藏下拉選單
+            document.addEventListener("click", function (event) {
+              var isClickInsideElement = document
+                .getElementById("dropdownMenu")
+                .contains(event.target);
+              if (!isClickInsideElement) {
+                document.getElementById("dropdownMenu").style.display = "none";
+              }
+            });
+
+            // 登出處理
+            document
+              .getElementById("logout")
+              .addEventListener("click", function () {
+                firebase
+                  .auth()
+                  .signOut()
+                  .then(() => {
+                    window.location.href = "index.html"; // 重定向到首頁或其他你希望的頁面
+                    // 登出成功，重定向或更新UI
+                  })
+                  .catch((error) => {
+                    // 處理錯誤
+                  });
+              });
+          } else {
+            // 用戶未登入
+            document
+              .getElementById("loginLink")
+              .setAttribute("href", "index.html");
+          }
+        });
+      }
+      checkAuthStatus();
+    </script>
+  </body>
+</html>
